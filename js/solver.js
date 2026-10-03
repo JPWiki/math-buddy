@@ -384,10 +384,10 @@ export function solve(input) {
   return solveParsed(parsed);
 }
 
-function moneyText(q) {
+function moneyText(q, currency = '$') {
   const neg = q.sign() < 0;
   const v = Math.abs(q.valueOf());
-  return `${neg ? MINUS : ''}$${Number.isInteger(v) ? v : v.toFixed(2)}`;
+  return `${neg ? MINUS : ''}${currency}${Number.isInteger(v) ? v : v.toFixed(2)}`;
 }
 
 function solveWords(w) {
@@ -417,7 +417,7 @@ function solveWords(w) {
   if (q && w.asFraction) {
     res.answer.html = numHTML(q, 'frac');
   } else if (q && w.money) {
-    res.answer.html = moneyText(q);
+    res.answer.html = moneyText(q, w.currency || '$');
     res.answer.forms = [];
   } else if (q && w.unit) {
     res.answer.html += ` <span class="unit">${w.unit}</span>`;

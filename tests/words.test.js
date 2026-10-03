@@ -32,7 +32,7 @@ test('says so instead of guessing', () => {
 });
 
 test('practice word problems are read correctly', () => {
-  for (let lv = 0; lv < 3; lv++) {
+  for (let lv = 0; lv < 4; lv++) {
     for (let i = 0; i < 300; i++) {
       const { text, answer } = wordProblem(lv);
       assert.ok(Math.abs(solve(text).answer.q.valueOf() - answer) < 1e-9, text);

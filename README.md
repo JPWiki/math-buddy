@@ -14,9 +14,10 @@ Android SDK, no account, no server.
   equations by doing the same thing to both sides (plus a check at the end).
 - **Let me try first** (on by default): the kid answers first, then can ask for a hint or
   reveal one step at a time. The full answer only appears at the end.
-- **School year**: set each kid's grade (1–8, shown with ages) when adding them or under
-  Progress → For grown-ups. Practice then shows that grade's topics, and Easy, Medium and
-  Hard get harder as the grade goes up (each topic has five difficulty steps).
+- **CBSE class**: set each kid's class (1–8, shown with ages) when adding them or under
+  Progress → For grown-ups. Practice follows the CBSE (NCERT) syllabus for that class:
+  **Medium** is what the class expects, **Easy** a step below, **Hard** a step above. Every
+  kid in the same class gets the same levels. Word problems use ₹.
 - **Stars by level**: right on the first try earns ★1 on Easy, ★2 on Medium, ★3 on Hard.
 - **Family view**: Progress → Family compares every kid side by side: stars, first-try
   accuracy, problems this week, best streak, what each needs to practice, a topic-by-topic

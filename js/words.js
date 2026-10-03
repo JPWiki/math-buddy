@@ -29,11 +29,12 @@ export function findNumbers(text) {
     while ((mt = g.exec(low))) add(mt.index, mt.index + mt[0].length, value, { fraction: true });
   }
   let mt;
-  const digits = /\$?\d[\d,]*(?:\.\d+)?(?:\/\d+)?\s?%?/g;
+  const digits = /[$\u20b9]?\d[\d,]*(?:\.\d+)?(?:\/\d+)?\s?%?/g;
   while ((mt = digits.exec(low))) {
     const raw = mt[0].trim();
-    const value = raw.replace(/[$,\s]/g, '');
-    add(mt.index, mt.index + raw.length, value, { money: raw.startsWith('$'), percent: raw.endsWith('%'), fraction: raw.includes('/') });
+    const value = raw.replace(/[$\u20b9,\s]/g, '');
+    const money = raw.startsWith('$') || raw.startsWith('\u20b9');
+    add(mt.index, mt.index + raw.length, value, { money, currency: money ? raw[0] : null, percent: raw.endsWith('%'), fraction: raw.includes('/') });
   }
   const dozen = /\b(?:a|one) dozen\b/g;
   while ((mt = dozen.exec(low))) add(mt.index, mt.index + mt[0].length, '12');
@@ -249,7 +250,8 @@ export function looksLikeWords(text) {
 }
 
 export function readWordProblem(text) {
-  const src = String(text).replace(/\s+/g, ' ').trim();
+  // "Rs. 50" and "Rs 50" become "\u20b950", so the dot isn't mistaken for the end of a sentence.
+  const src = String(text).replace(/\s+/g, ' ').trim().replace(/\b(?:rs|inr)\.?\s?(?=\d)/gi, '\u20b9');
   const low = src.toLowerCase();
   const nums = findNumbers(src);
   if (nums.length < 2 || nums.length > 5) return null;
@@ -259,7 +261,8 @@ export function readWordProblem(text) {
   const expr = nums.length === 2 ? twoNumbers(low, q, nums, clues) : manyNumbers(low, q, nums, clues, sentences);
   if (!expr) return null;
 
-  const money = nums.some((x) => x.money) && !/how many/.test(q.text) && /how much|money|cost|spend|spent|pay|price|\$|change|left|save/.test(q.text);
+  const currency = (nums.find((x) => x.money) || {}).currency || null;
+  const money = !!currency && !/how many/.test(q.text) && /how much|money|cost|spend|spent|pay|price|\$|change|left|save/.test(q.text);
   const unit = money ? null : findUnit(q.text, low, nums);
   const seen = new Set();
   const clueList = clues.filter((c) => {
@@ -276,6 +279,7 @@ export function readWordProblem(text) {
     expr,
     asFraction: /what fraction|what part/.test(q.text),
     money,
+    currency,
     unit,
     question: src.slice(q.start, q.start + q.text.length).trim(),
     numbers: numberList,

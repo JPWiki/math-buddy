@@ -6,9 +6,9 @@ import { createStore, readBackup, dayKey } from '../js/store.js';
 
 test('every topic tier makes problems the solver can answer', () => {
   for (const t of TOPICS) {
-    for (let tier = 0; tier < 5; tier++) {
+    for (let tier = 0; tier < t.steps.length; tier++) {
       for (let i = 0; i < 60; i++) {
-        const p = t.gen(tier);
+        const p = t.steps[tier]();
         assert.ok(solve(p).answer.q, `${t.id} tier ${tier}: ${p}`);
       }
     }
@@ -20,8 +20,9 @@ test('each grade has topics, and Easy/Medium/Hard always differ', () => {
     const topics = TOPICS.filter((t) => inGrade(t, g));
     assert.ok(topics.length >= 3, `grade ${g}`);
     for (const t of topics) {
-      const tiers = [0, 1, 2].map((lv) => tierFor(t, g, lv));
-      assert.equal(new Set(tiers).size, 3, `${t.id} grade ${g}: ${tiers}`);
+      const [e, m, h] = [0, 1, 2].map((lv) => tierFor(t, g, lv));
+      assert.ok(e < m && m < h, `${t.id} class ${g}: ${e} ${m} ${h}`);
+      assert.ok(h < t.steps.length, `${t.id} class ${g} has a step for Hard`);
     }
   }
   // The same topic and level gets harder as the grade goes up.
@@ -32,7 +33,7 @@ test('each grade has topics, and Easy/Medium/Hard always differ', () => {
 
 test('a round uses the grade', () => {
   const round = makeRound('add', 0, 10, () => true, 1);
-  for (const p of round) assert.ok(solve(p).answer.q.valueOf() <= 18, p);
+  for (const p of round) assert.ok(solve(p).answer.q.valueOf() <= 10, p);
 });
 
 test('grade and daily practice are kept and travel in backups', () => {

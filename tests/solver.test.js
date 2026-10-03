@@ -51,7 +51,7 @@ test('every practice topic produces solvable problems', () => {
   for (const t of TOPICS) {
     for (let lv = 0; lv < 3; lv++) {
       for (let i = 0; i < 100; i++) {
-        const p = t.gen(lv);
+        const p = t.steps[lv]();
         assert.ok(solve(p).answer.q, `${t.id} ${lv}: ${p}`);
       }
     }

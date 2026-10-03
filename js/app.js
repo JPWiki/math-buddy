@@ -237,7 +237,7 @@ function renderTopics() {
   $('#level').innerHTML = LEVELS.map((l, i) => `<button type="button" role="radio" aria-checked="${i === level}" data-level="${i}">${l} <small>★${LEVEL_STARS[i]}</small></button>`).join('');
   $('#grade-line').innerHTML = grade
     ? `<b>${gradeLabel(grade)}</b> topics${kid ? ` for ${esc(kid.name)}` : ''}. <button type="button" class="linkish" data-gl="toggle">${showAllTopics ? 'Show only this grade' : 'Show all topics'}</button>`
-    : `No school year set, so every topic is shown. A grown-up can set it under <a href="#progress">Progress</a>.`;
+    : `No class set, so every topic is shown. A grown-up can set the CBSE class under <a href="#progress">Progress</a>.`;
   const list = TOPICS.filter((t) => !grade || showAllTopics || inGrade(t, grade));
   $('#topics').innerHTML = list.map((t) => {
     const s = stats[t.id];
@@ -437,10 +437,10 @@ function manageHTML(kid) {
       <div class="row"><button type="button" class="ghost danger" data-m="delete-yes">Yes, delete ${name}</button><button type="button" class="ghost" data-m="cancel">Cancel</button></div>`;
   }
   return `<div class="grade-row">
-      <label for="grade-select">School year</label>
+      <label for="grade-select">CBSE class</label>
       <select id="grade-select" class="grade-select">${gradeOptions(kid.grade)}</select>
     </div>
-    <p class="muted small-note" style="margin:0 0 12px">Practice shows the topics for this school year, and Easy, Medium and Hard get harder as it goes up.</p>
+    <p class="muted small-note" style="margin:0 0 12px">Practice follows the CBSE syllabus for this class: Medium is what the class expects, Easy is a step below and Hard a step above.</p>
     <div class="row">
       <button type="button" class="ghost small" data-m="rename">Rename</button>
       <button type="button" class="ghost small" data-m="reset">Reset progress</button>
@@ -451,7 +451,7 @@ function manageHTML(kid) {
 
 // <option>s for the school-year pickers.
 function gradeOptions(selected) {
-  return `<option value="">School year: not set</option>${GRADES.map((g) => `<option value="${g}"${g === selected ? ' selected' : ''}>${gradeLabel(g)} (${gradeAges(g)})</option>`).join('')}`;
+  return `<option value="">Class: not set</option>${GRADES.map((g) => `<option value="${g}"${g === selected ? ' selected' : ''}>${gradeLabel(g)} (${gradeAges(g)})</option>`).join('')}`;
 }
 
 // ---------- family view: every kid side by side, for grown-ups ----------
@@ -493,7 +493,7 @@ function familyHTML() {
     const weak = weakestTopic(d.topics);
     const weakPct = weak ? Math.round((100 * weak.st.firstTry) / weak.st.tries) : null;
     return `<article class="fam-kid">
-      <header>${avatar(k)}<div><b>${esc(k.name)}</b><small>${k.grade ? `${gradeLabel(k.grade)} · ${gradeAges(k.grade)}` : 'School year not set'}</small></div></header>
+      <header>${avatar(k)}<div><b>${esc(k.name)}</b><small>${k.grade ? `${gradeLabel(k.grade)} · ${gradeAges(k.grade)}` : 'Class not set'}</small></div></header>
       <dl>
         <div><dt>Stars</dt><dd>★ ${d.stars}</dd></div>
         <div><dt>Right first try</dt><dd>${rate ? `<span class="pct ${band(rate.pct)}">${rate.pct}%</span>` : '–'}</dd></div>
@@ -647,7 +647,7 @@ function renderProgress() {
     gs.onchange = () => {
       store.setGrade(kid.id, gs.value || null);
       const g = store.current().grade;
-      toast(g ? `${kid.name}: ${gradeLabel(g)}` : `${kid.name}: school year not set`);
+      toast(g ? `${kid.name}: ${gradeLabel(g)}` : `${kid.name}: class not set`);
     };
   }
   const rename = $('#rename-form');
