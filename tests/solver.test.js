@@ -45,16 +45,26 @@ test('the answer must be one number, not the calculation', () => {
     const r = checkAnswer(a, q);
     assert.ok(!r.ok && r.error, a);
   }
-  for (const a of ['9/10', '0.9', '18/20', ' 9/10 ']) assert.ok(checkAnswer(a, q).ok, a);
+  for (const a of ['9/10', '0.9', ' 9/10 ']) assert.ok(checkAnswer(a, q).ok, a);
   assert.ok(checkAnswer('\u221212', Q.int(-12)).ok, 'minus sign from the keypad');
   assert.ok(checkAnswer('\u20b914', Q.int(14)).ok, 'rupees');
   assert.ok(checkAnswer('14 cookies', Q.int(14)).ok);
   assert.ok(checkAnswer('1,250', Q.int(1250)).ok);
 });
 
+test('fractions must be in simplest form', () => {
+  assert.match(checkAnswer('18/20', new Q(9, 10)).error, /simplest form: divide the top and bottom by 2/);
+  assert.match(checkAnswer('12/4', Q.int(3)).error, /whole number: 3/);
+  assert.match(checkAnswer('2 4/3', new Q(10, 3)).error, /less than 1/);
+  assert.match(checkAnswer('x = 10/2', Q.int(5)).error, /whole number: 5/);
+  assert.ok(checkAnswer('7/4', new Q(7, 4)).ok, 'improper fractions are fine');
+  assert.ok(checkAnswer('-3/4', new Q(-3, 4)).ok);
+  assert.ok(!checkAnswer('2/4', new Q(1, 3)).error, 'a wrong answer is just wrong');
+});
+
 test('answer checking accepts equivalent forms', () => {
   const q = new Q(5, 4);
-  for (const a of ['5/4', '1 1/4', '1.25', '10/8']) assert.ok(checkAnswer(a, q).ok, a);
+  for (const a of ['5/4', '1 1/4', '1.25']) assert.ok(checkAnswer(a, q).ok, a);
   assert.ok(!checkAnswer('1.2', q).ok);
   assert.ok(checkAnswer('x = 5', Q.int(5)).ok);
   assert.ok(checkAnswer('3 R 2', new Q(17, 5), { whole: 3, rem: 2 }).ok);

@@ -1,6 +1,6 @@
 // Works a problem through one step at a time and records every step.
 
-import { Q, MathError } from './rational.js';
+import { Q, MathError, gcd } from './rational.js';
 import { parseProblem } from './parser.js';
 import { exprHTML, exprText, numHTML, numText, numNodeHTML, fracHTML, group, answerForms, MINUS } from './format.js';
 import * as X from './explain.js';
@@ -504,6 +504,22 @@ export function readAnswer(text) {
   return { q: evalQ(parsed.tree) };
 }
 
+// A right answer written as a fraction must be in simplest form, the way school expects:
+// 18/20 should be 9/10, 12/4 should be 3, 2 4/3 should be 3 1/3. Improper fractions like 7/4
+// and mixed numbers like 1 3/4 are both fine.
+function notSimplest(text) {
+  const s = String(text).trim().replace(/[\u2212\u2013]/g, '-').replace(/^[a-z?]\s*=\s*/i, '').replace(/^[$\u20b9]\s*/, '');
+  const mt = s.match(/^-?(?:(\d+)\s+)?(\d+)\/(\d+)/);
+  if (!mt) return null;
+  const whole = mt[1] !== undefined ? Number(mt[1]) : null;
+  const n = Number(mt[2]), d = Number(mt[3]);
+  if (n % d === 0) return `That's the right value, but write it as a whole number: ${n / d + (whole || 0)}.`;
+  const g = gcd(n, d);
+  if (g > 1) return `That's the right value, but write it in simplest form: divide the top and bottom by ${g}.`;
+  if (whole !== null && n > d) return "That's the right value, but the fraction part should be less than 1. Move the extra wholes into the whole number.";
+  return null;
+}
+
 export function checkAnswer(text, expected, remainderInfo = null) {
   let got;
   try { got = readAnswer(text); } catch (e) { return { ok: false, error: e.message }; }
@@ -511,7 +527,10 @@ export function checkAnswer(text, expected, remainderInfo = null) {
     if (remainderInfo) return { ok: got.remainder.whole === remainderInfo.whole && got.remainder.rem === remainderInfo.rem };
     return { ok: false, error: 'Write the answer as a number, like 4 or 3/4.' };
   }
-  if (got.q.eq(expected)) return { ok: true };
+  if (got.q.eq(expected)) {
+    const hint = notSimplest(text);
+    return hint ? { ok: false, simplify: true, error: hint } : { ok: true };
+  }
   if (!expected.isTerminating() && Math.abs(got.q.valueOf() - expected.valueOf()) < 0.01) return { ok: true, close: true };
   return { ok: false };
 }

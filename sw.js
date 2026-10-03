@@ -1,6 +1,6 @@
 // Keeps Math Buddy working offline. Change VERSION (to match js/version.js)
 // whenever app files change, so installed copies fetch the new files.
-const VERSION = 'math-buddy-1.8.1';
+const VERSION = 'math-buddy-1.8.2';
 // The Firebase code (js/vendor/firebase.js) isn't listed: it's cached the first time a
 // device turns on family sync, so other devices don't download it.
 const SHELL = [
@@ -30,8 +30,19 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's own HTTP cache, so the new version gets new files.
+  e.waitUntil(caches.open(VERSION)
+    .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
+
+// Waits up to `ms` for the network, so a slow connection falls back to the saved copy.
+function fetchWithin(req, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('slow')), ms);
+    fetch(req, { cache: 'no-cache' }).then((res) => { clearTimeout(timer); resolve(res); }, (err) => { clearTimeout(timer); reject(err); });
+  });
+}
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
@@ -46,16 +57,18 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // App files: cached copy first, refreshed in the background.
+  // App files: the latest version when online (so updates show up straight away),
+  // the saved copy when offline or the network is too slow.
   if (url.origin === location.origin) {
     e.respondWith(
       caches.open(VERSION).then(async (cache) => {
-        const cached = await cache.match(req, { ignoreSearch: true });
-        const fresh = fetch(req).then((res) => {
+        try {
+          const res = await fetchWithin(req, 4000);
           if (res.ok) cache.put(req, res.clone());
           return res;
-        }).catch(() => cached || cache.match('index.html'));
-        return cached || fresh;
+        } catch {
+          return (await cache.match(req, { ignoreSearch: true })) || (await cache.match('index.html')) || Response.error();
+        }
       }),
     );
     return;

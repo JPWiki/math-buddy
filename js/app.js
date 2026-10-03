@@ -260,6 +260,7 @@ function noNegatives(text) {
 }
 
 function startRound(topicId) {
+  if (updateWaiting) { applyUpdateIfSafe(); return; }
   const topic = TOPICS.find((t) => t.id === topicId);
   const grade = (store.current() || {}).grade || null;
   const accept = allowsNegatives(topic, grade) ? () => true : noNegatives;
@@ -349,6 +350,7 @@ function checkPractice() {
 }
 
 function endRound() {
+  round.done = true; // the score screen is showing; safe to update after this
   const right = round.results.filter(Boolean).length;
   const total = round.problems.length;
   const msg = right === total ? 'Perfect round!' : right >= total * 0.8 ? 'Excellent work!' : right >= total * 0.5 ? 'Good effort! Practice makes progress.' : 'That was a tough one. Try Easy level, then work back up.';
@@ -374,6 +376,7 @@ function endRound() {
 
 function backToTopics() {
   round = null;
+  applyUpdateIfSafe();
   $('#practice-play').hidden = true;
   $('#practice-done').hidden = true;
   $('#practice-setup').hidden = false;
@@ -1051,6 +1054,7 @@ function setupWho() {
 // ---------- tabs, install, offline ----------
 
 function route({ keepScroll = false } = {}) {
+  applyUpdateIfSafe();
   const tab = (location.hash || '#solve').slice(1);
   const valid = ['solve', 'practice', 'progress'].includes(tab) ? tab : 'solve';
   for (const v of ['solve', 'practice', 'progress']) $(`#view-${v}`).hidden = v !== valid;
@@ -1078,11 +1082,41 @@ $('#install').onclick = async () => {
   $('#install').hidden = true;
 };
 
+// ---------- updates ----------
+// A new version takes over in the background. Reload into it straight away, unless a
+// practice round is going on: then wait until the round ends.
+let updateWaiting = false;
+
+function applyUpdateIfSafe() {
+  if (!updateWaiting || (round && !round.done)) return;
+  try { sessionStorage.setItem('math-buddy.updated', '1'); } catch { /* ignore */ }
+  location.reload();
+}
+
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || updateWaiting) return; // first install, not an update
+    updateWaiting = true;
+    applyUpdateIfSafe();
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => { /* not available here; app still works online */ });
   });
+  // An installed app often resumes from the background without reloading, so look for a
+  // new version each time it comes back to the screen.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    navigator.serviceWorker.getRegistration().then((reg) => reg && reg.update()).catch(() => {});
+  });
 }
+
+try {
+  if (sessionStorage.getItem('math-buddy.updated')) {
+    sessionStorage.removeItem('math-buddy.updated');
+    setTimeout(() => toast(`Updated to v${APP_VERSION}`), 600);
+  }
+} catch { /* ignore */ }
 
 setupSolve();
 setupPractice();
