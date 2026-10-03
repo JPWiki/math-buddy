@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Math Buddy</title>
+<meta name="description" content="Step-by-step math help and practice for kids.">
+<meta name="theme-color" content="#2f5bea">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Lexend:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<!--APP-->
+<header class="top">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><rect x="3" y="3" width="42" height="42" rx="12" fill="var(--accent)"/><path d="M14 18h8M18 14v8M27 18h8M14 31l6 6M20 31l-6 6M27 31h8M27 36h8" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
+    <span>Math Buddy</span>
+  </div>
+  <div class="top-right">
+    <button id="install" class="ghost small" type="button" hidden>Install app</button>
+    <span class="stars" title="Stars earned"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z" fill="var(--star)"/></svg><b id="star-count">0</b></span>
+  </div>
+</header>
+
+<main>
+  <!-- SOLVE -->
+  <section id="view-solve" class="view" aria-labelledby="solve-h">
+    <h1 id="solve-h" class="sr-only">Solve a problem</h1>
+    <form id="solve-form" class="ask" autocomplete="off">
+      <label for="problem" class="ask-label">Type a math problem</label>
+      <div class="ask-row">
+        <input id="problem" name="problem" type="text" inputmode="text" enterkeyhint="go" spellcheck="false" autocapitalize="off" placeholder="like 3/4 + 1/6 or 3x + 5 = 20">
+        <button id="camera-btn" class="icon-btn" type="button" aria-label="Take a photo of a problem" title="Take a photo of a problem">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+        </button>
+        <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
+      </div>
+      <div class="symbols" role="group" aria-label="Insert a math symbol">
+        <button type="button" data-ins=" × ">×</button>
+        <button type="button" data-ins=" ÷ ">÷</button>
+        <button type="button" data-ins="/" title="Fraction bar">a/b</button>
+        <button type="button" data-ins="(">(</button>
+        <button type="button" data-ins=")">)</button>
+        <button type="button" data-ins="^" title="Power">x²</button>
+        <button type="button" data-ins="%">%</button>
+        <button type="button" data-ins="x">x</button>
+        <button type="button" data-ins=" = ">=</button>
+        <button type="button" data-ins="?" title="Missing number">?</button>
+      </div>
+      <p id="ocr-status" class="ocr-status" role="status" hidden></p>
+      <div class="ask-actions">
+        <label class="switch"><input id="hint-first" type="checkbox"> <span>Let me try first</span></label>
+        <button id="solve-btn" class="primary" type="submit">Solve</button>
+      </div>
+    </form>
+
+    <div class="examples">
+      <span class="label">Try one:</span>
+      <div class="chips" id="examples"></div>
+    </div>
+
+    <p id="solve-error" class="error" role="alert" hidden></p>
+    <article id="result" class="result" aria-live="polite" hidden></article>
+  </section>
+
+  <!-- PRACTICE -->
+  <section id="view-practice" class="view" aria-labelledby="practice-h" hidden>
+    <div id="practice-setup">
+      <h1 id="practice-h">Practice</h1>
+      <p class="lede">Pick a topic. You get 10 problems and a star for every one you get right on the first try.</p>
+      <div class="level" role="radiogroup" aria-label="Level" id="level"></div>
+      <div class="topics" id="topics"></div>
+    </div>
+
+    <div id="practice-play" hidden>
+      <div class="play-head">
+        <button id="quit" type="button" class="ghost small">Stop</button>
+        <div class="dots" id="dots" aria-hidden="true"></div>
+        <span id="play-count" class="count">1 / 10</span>
+      </div>
+      <div class="card play-card">
+        <p class="topic-name" id="play-topic"></p>
+        <div class="question" id="question"></div>
+        <form id="answer-form" autocomplete="off">
+          <label for="answer" class="sr-only">Your answer</label>
+          <input id="answer" type="text" inputmode="none" placeholder="?" spellcheck="false">
+          <div class="keypad" id="keypad">
+            <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" data-k="back" aria-label="Delete">⌫</button>
+            <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button><button type="button" data-k="/" aria-label="Fraction bar">/</button>
+            <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" data-k="." aria-label="Decimal point">.</button>
+            <button type="button" data-k="-" aria-label="Minus">−</button><button type="button" data-k="0">0</button><button type="submit" class="primary check" id="check-btn">Check</button>
+          </div>
+        </form>
+        <div id="feedback" class="feedback" role="status"></div>
+        <div id="play-steps"></div>
+      </div>
+    </div>
+
+    <div id="practice-done" class="card done" hidden></div>
+  </section>
+
+  <!-- PROGRESS -->
+  <section id="view-progress" class="view" aria-labelledby="progress-h" hidden>
+    <h1 id="progress-h">Progress</h1>
+    <div id="progress-body"></div>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Sections">
+  <a href="#solve" data-tab="solve"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Solve</a>
+  <a href="#practice" data-tab="practice"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.4 6.8 19.2l1-5.9L3.5 9.2l5.9-.8z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>Practice</a>
+  <a href="#progress" data-tab="progress"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V12M12 20V5M19 20v-9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>Progress</a>
+</nav>
+<div id="toast" class="toast" role="status" hidden></div>
+<!--/APP-->
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
