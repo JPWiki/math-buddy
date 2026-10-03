@@ -1,6 +1,6 @@
 // Keeps Math Buddy working offline. Change VERSION (to match js/version.js)
 // whenever app files change, so installed copies fetch the new files.
-const VERSION = 'math-buddy-1.4.0';
+const VERSION = 'math-buddy-1.4.1';
 const SHELL = [
   './',
   'index.html',
