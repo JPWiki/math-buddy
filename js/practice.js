@@ -72,9 +72,14 @@ export const TOPICS = [
       const make = [
         () => `${pick([2, 5, 10])} × ${rnd(1, 10)}`,
         () => `${rnd(2, 5)} × ${rnd(2, 10)}`,
-        () => `${rnd(2, 10)} × ${rnd(2, 10)}`,
-        () => `${rnd(3, 12)} × ${rnd(6, 12)}`,
-        () => `${rnd(12, 99)} × ${rnd(3, 9)}`,
+        // All the facts up to 12 x 12, mostly the tricky ones (6-9, 12) rather than x10 and x11.
+        () => {
+          let a = rnd(3, 12), b = rnd(3, 12);
+          while ((a === 10 || a === 11 || b === 10 || b === 11) && Math.random() < 0.8) { a = rnd(3, 12); b = rnd(3, 12); }
+          return `${a} × ${b}`;
+        },
+        () => `${rnd(13, 99)} × ${rnd(3, 9)}`,
+        () => pick([`${rnd(102, 999)} × ${rnd(3, 9)}`, `${rnd(13, 19)} × ${rnd(13, 19)}`]),
       ];
       return make[t]();
     },
