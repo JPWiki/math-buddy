@@ -371,8 +371,11 @@ function setupPractice() {
     if (!b || !b.dataset.k) return;
     const input = $('#answer');
     if (round && round.finished) return;
-    if (b.dataset.k === 'back') input.value = input.value.slice(0, -1);
-    else input.value += b.dataset.k;
+    // After a wrong try the old answer is selected, so the next key replaces it.
+    const allSelected = input.value && input.selectionStart === 0 && input.selectionEnd === input.value.length;
+    if (b.dataset.k === 'back') input.value = allSelected ? '' : input.value.slice(0, -1);
+    else input.value = (allSelected ? '' : input.value) + b.dataset.k;
+    input.setSelectionRange(input.value.length, input.value.length);
   };
 }
 
