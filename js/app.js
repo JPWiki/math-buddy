@@ -322,7 +322,7 @@ function checkPractice() {
   if (!val) return;
   const fb = $('#feedback');
   const r = checkAnswer(val, round.solved.answer.q);
-  if (r.error && round.tries === 0) {
+  if (r.error) {
     fb.className = 'feedback bad';
     fb.innerHTML = `<span class="grow">${esc(r.error)}</span>`;
     return;

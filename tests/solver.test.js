@@ -39,6 +39,19 @@ test('kid-friendly errors', () => {
   assert.throws(() => solve('(2 + 3'), /never closed/);
 });
 
+test('the answer must be one number, not the calculation', () => {
+  const q = new Q(9, 10);
+  for (const a of ['7/10+2/10', '7/10 + 2/10', '0.7 + 0.2', '3 x 3 / 10', '(9/10)', '9/10 = 9/10']) {
+    const r = checkAnswer(a, q);
+    assert.ok(!r.ok && r.error, a);
+  }
+  for (const a of ['9/10', '0.9', '18/20', ' 9/10 ']) assert.ok(checkAnswer(a, q).ok, a);
+  assert.ok(checkAnswer('\u221212', Q.int(-12)).ok, 'minus sign from the keypad');
+  assert.ok(checkAnswer('\u20b914', Q.int(14)).ok, 'rupees');
+  assert.ok(checkAnswer('14 cookies', Q.int(14)).ok);
+  assert.ok(checkAnswer('1,250', Q.int(1250)).ok);
+});
+
 test('answer checking accepts equivalent forms', () => {
   const q = new Q(5, 4);
   for (const a of ['5/4', '1 1/4', '1.25', '10/8']) assert.ok(checkAnswer(a, q).ok, a);

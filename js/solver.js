@@ -486,12 +486,21 @@ function solveParsed(parsed) {
 }
 
 // Reads a kid's typed answer: "3/4", "0.75", "2 1/2", "x = 5", "7 R 3".
+// An answer must be one number: 12, -5, 0.75, 3/4, 2 1/2 (optionally "x = ...", "₹14" or
+// "14 cookies"). A calculation like "7/10 + 2/10" is not an answer, so it isn't accepted.
+const ONE_NUMBER = /^-?(\d[\d,]*(\.\d+)?|\.\d+|\d+\/\d+|\d+ \d+\/\d+)$/;
+
 export function readAnswer(text) {
-  let s = String(text).trim().replace(/^[a-z?]\s*=\s*/i, '').replace(/^\$\s*/, '').replace(/^(-?[\d.,/ ]*\d)\s+[a-z][a-z ]*$/i, '$1');
+  let s = String(text).trim()
+    .replace(/[\u2212\u2013]/g, '-')
+    .replace(/^[a-z?]\s*=\s*/i, '')
+    .replace(/^[$\u20b9]\s*/, '')
+    .replace(/^(-?[\d.,/ ]*\d)\s+[a-z][a-z ]*$/i, '$1')
+    .replace(/\s+/g, ' ');
   const rem = s.match(/^(-?\d+)\s*(?:r|rem|remainder)\s*(\d+)$/i);
   if (rem) return { remainder: { whole: Number(rem[1]), rem: Number(rem[2]) } };
+  if (!ONE_NUMBER.test(s)) throw new MathError('Type just the answer as one number, like 12, 0.5 or 9/10.');
   const parsed = parseProblem(s);
-  if (parsed.kind !== 'expr') throw new MathError('Type just the answer, like 12 or 3/4.');
   return { q: evalQ(parsed.tree) };
 }
 
