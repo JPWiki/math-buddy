@@ -21,119 +21,218 @@ function dec(lo, hi, places) {
 }
 
 export const LEVELS = ['Easy', 'Medium', 'Hard'];
+// Stars for each problem right on the first try, by level.
+export const LEVEL_STARS = [1, 2, 3];
 
+// School years 1 to 8, with the usual ages, so grown-ups can pick either.
+export const GRADES = [1, 2, 3, 4, 5, 6, 7, 8];
+export const gradeLabel = (g) => `Grade ${g}`;
+export const gradeAges = (g) => `age ${g + 5}–${g + 6}`;
+
+const between = (lo, hi) => () => rnd(lo, hi);
+const digits = (n) => between(10 ** (n - 1), 10 ** n - 1);
+const minus = (x, y) => `${Math.max(x, y)} − ${Math.min(x, y)}`;
+const nz = (lo, hi) => { let v = 0; while (!v) v = rnd(lo, hi); return v; };
+const sgn = (v) => (v < 0 ? `(−${-v})` : `${v}`);
+const lead = (v) => (v < 0 ? `−${-v}` : `${v}`);
+
+// Every topic has five steps of difficulty (tiers 0-4) and the school years it belongs to.
+// In a topic's first grade, Easy/Medium/Hard are tiers 0/1/2; each grade after that moves
+// them up one tier (up to tier 4), so the same topic keeps growing with the kid.
 export const TOPICS = [
   {
-    id: 'add', name: 'Addition', sample: '347 + 285',
-    gen: (lv) => {
-      const r = [[10, 99], [100, 999], [1000, 9999]][lv];
-      return `${rnd(...r)} + ${rnd(...r)}`;
+    id: 'add', name: 'Addition', sample: '347 + 285', grades: [1, 4],
+    gen: (t) => {
+      const make = [
+        () => `${rnd(2, 9)} + ${rnd(1, 9)}`,
+        () => `${rnd(11, 89)} + ${rnd(2, 9)}`,
+        () => `${digits(2)()} + ${digits(2)()}`,
+        () => `${digits(3)()} + ${digits(3)()}`,
+        () => `${digits(4)()} + ${digits(4)()}`,
+      ];
+      return make[t]();
     },
   },
   {
-    id: 'sub', name: 'Subtraction', sample: '503 − 278',
-    gen: (lv) => {
-      const r = [[10, 99], [100, 999], [1000, 9999]][lv];
-      const a = rnd(...r), b = rnd(...r);
-      return `${Math.max(a, b)} − ${Math.min(a, b)}`;
+    id: 'sub', name: 'Subtraction', sample: '503 − 278', grades: [1, 4],
+    gen: (t) => {
+      const make = [
+        () => { const a = rnd(5, 20); return `${a} − ${rnd(1, Math.min(9, a - 1))}`; },
+        () => `${rnd(21, 99)} − ${rnd(2, 9)}`,
+        () => minus(digits(2)(), digits(2)()),
+        () => minus(digits(3)(), digits(3)()),
+        () => minus(digits(4)(), digits(4)()),
+      ];
+      return make[t]();
     },
   },
   {
-    id: 'times', name: 'Times tables', sample: '7 × 8',
-    gen: (lv) => {
-      if (lv === 2) return `${rnd(12, 99)} × ${rnd(3, 9)}`;
-      const top = lv === 0 ? 10 : 12;
-      return `${rnd(2, top)} × ${rnd(2, top)}`;
+    id: 'times', name: 'Times tables', sample: '7 × 8', grades: [2, 5],
+    gen: (t) => {
+      const make = [
+        () => `${pick([2, 5, 10])} × ${rnd(1, 10)}`,
+        () => `${rnd(2, 5)} × ${rnd(2, 10)}`,
+        () => `${rnd(2, 10)} × ${rnd(2, 10)}`,
+        () => `${rnd(3, 12)} × ${rnd(6, 12)}`,
+        () => `${rnd(12, 99)} × ${rnd(3, 9)}`,
+      ];
+      return make[t]();
     },
   },
   {
-    id: 'longmul', name: 'Big multiplying', sample: '236 × 45',
-    gen: (lv) => [() => `${rnd(12, 99)} × ${rnd(2, 9)}`, () => `${rnd(12, 99)} × ${rnd(12, 99)}`, () => `${rnd(102, 999)} × ${rnd(12, 99)}`][lv](),
-  },
-  {
-    id: 'div', name: 'Division', sample: '84 ÷ 7',
-    gen: (lv) => {
-      const [b, q] = [[rnd(2, 10), rnd(2, 10)], [rnd(2, 9), rnd(11, 40)], [rnd(3, 9), rnd(21, 199)]][lv];
+    id: 'div', name: 'Division', sample: '84 ÷ 7', grades: [3, 6],
+    gen: (t) => {
+      const [b, q] = [
+        [rnd(2, 5), rnd(2, 10)],
+        [rnd(2, 10), rnd(2, 10)],
+        [rnd(3, 12), rnd(3, 12)],
+        [rnd(3, 9), rnd(13, 99)],
+        pick([[rnd(3, 9), rnd(101, 999)], [rnd(11, 25), rnd(12, 40)]]),
+      ][t];
       return `${b * q} ÷ ${b}`;
     },
   },
   {
-    id: 'order', name: 'Order of operations', sample: '2 + 3 × (8 − 2)',
-    gen: (lv) => {
-      const a = rnd(2, 9), b = rnd(2, 9), c = rnd(2, 9), d = rnd(1, 9);
-      if (lv === 0) return pick([`${a} + ${b} × ${c}`, `${a * b + c} − ${a} × ${b}`, `${a} × ${b} + ${c}`]);
-      if (lv === 1) return pick([`(${a} + ${b}) × ${c}`, `${a} × (${b + c} − ${c})`, `${a} + ${b} × ${c} − ${d}`, `${c * a} ÷ ${c} + ${b}`]);
-      return pick([`${a}^2 + ${b} × ${c}`, `(${a} + ${b}) × ${c} − ${d}^2`, `${c * (a + b)} ÷ (${a} + ${b}) + ${d}`, `${rnd(2, 5)}^3 − ${a} × ${b}`]);
-    },
+    id: 'longmul', name: 'Big multiplying', sample: '236 × 45', grades: [4, 7],
+    gen: (t) => [
+      () => `${rnd(12, 99)} × ${rnd(2, 9)}`,
+      () => `${rnd(102, 999)} × ${rnd(2, 9)}`,
+      () => `${rnd(12, 99)} × ${rnd(12, 99)}`,
+      () => `${rnd(102, 999)} × ${rnd(12, 99)}`,
+      () => `${rnd(102, 999)} × ${rnd(102, 999)}`,
+    ][t](),
   },
   {
-    id: 'fracadd', name: 'Adding fractions', sample: '3/4 + 1/6',
-    gen: (lv) => {
-      if (lv === 0) {
-        const d = rnd(3, 12);
-        const a = rnd(1, d - 1), b = rnd(1, d - 1);
-        return Math.random() < 0.5 || a === b ? `${a}/${d} + ${b}/${d}` : `${Math.max(a, b)}/${d} − ${Math.min(a, b)}/${d}`;
+    id: 'fracadd', name: 'Adding fractions', sample: '3/4 + 1/6', grades: [3, 7],
+    gen: (t) => {
+      if (t <= 1) {
+        const d = t === 0 ? rnd(3, 8) : rnd(5, 12);
+        let a = rnd(1, d - 1), b = rnd(1, d - 1);
+        if (t === 0) while (a + b > d) { a = rnd(1, d - 1); b = rnd(1, d - 1); }
+        return Math.random() < 0.6 || a === b ? `${a}/${d} + ${b}/${d}` : `${Math.max(a, b)}/${d} − ${Math.min(a, b)}/${d}`;
       }
-      if (lv === 1) {
-        const dens = [2, 3, 4, 5, 6, 8, 10, 12];
+      if (t <= 3) {
+        const dens = t === 2 ? [2, 3, 4, 6, 8] : [2, 3, 4, 5, 6, 8, 9, 10, 12];
         let [a, b] = properFrac(dens), [c, d] = properFrac(dens);
         while (b === d) [c, d] = properFrac(dens);
-        if (Math.random() < 0.5) return `${a}/${b} + ${c}/${d}`;
+        if (t === 2 || Math.random() < 0.5) return `${a}/${b} + ${c}/${d}`;
         return a / b >= c / d ? `${a}/${b} − ${c}/${d}` : `${c}/${d} − ${a}/${b}`;
       }
       const [a, b] = properFrac([2, 3, 4, 5, 6]), [c, d] = properFrac([2, 3, 4, 6, 8]);
-      return `${rnd(1, 4)} ${a}/${b} + ${rnd(1, 3)} ${c}/${d}`;
+      const w1 = rnd(2, 5), w2 = rnd(1, w1 - 1);
+      return Math.random() < 0.5 ? `${w1} ${a}/${b} + ${w2} ${c}/${d}` : `${w1} ${a}/${b} − ${w2} ${c}/${d}`;
     },
   },
   {
-    id: 'fracmul', name: 'Multiplying fractions', sample: '12 × 3/4',
-    gen: (lv) => {
-      const [a, b] = properFrac([2, 3, 4, 5, 6, 8, 10]);
-      if (lv === 0) return `${b * rnd(1, 6)} × ${a}/${b}`;
-      const [c, d] = properFrac([2, 3, 4, 5, 6, 8, 9]);
-      return lv === 1 ? `${a}/${b} × ${c}/${d}` : `${a}/${b} ÷ ${c}/${d}`;
-    },
-  },
-  {
-    id: 'dec', name: 'Decimals', sample: '3.5 + 12.25',
-    gen: (lv) => {
+    id: 'dec', name: 'Decimals', sample: '3.5 + 12.25', grades: [4, 8],
+    gen: (t) => {
       const d1 = () => dec(11, 99, 1);
       const d2 = () => dec(101, 999, 2);
-      if (lv === 0) return `${d1()} + ${d1()}`;
-      if (lv === 1) {
+      if (t === 0) return `${d1()} + ${d1()}`;
+      if (t === 1) {
         const a = Number(d2()), b = Number(d1());
-        return Math.random() < 0.5 ? `${a.toFixed(2)} + ${b.toFixed(1)}` : `${Math.max(a, b)} − ${Math.min(a, b)}`;
+        return Math.random() < 0.5 ? `${a} + ${b}` : `${Math.max(a, b)} − ${Math.min(a, b)}`;
+      }
+      if (t === 2) return pick([`${d1()} × ${rnd(2, 9)}`, `${d2()} × ${pick([10, 100])}`]);
+      if (t === 3) {
+        const dv = rnd(3, 9);
+        let k = rnd(11, 99);
+        while ((k * dv) % 10 === 0) k = rnd(11, 99);
+        return pick([`${dec(11, 49, 1)} × ${dec(11, 29, 1)}`, `${((k * dv) / 10).toFixed(1)} ÷ ${dv}`]);
       }
       const dv = rnd(2, 5);
-      return pick([`${d1()} × ${rnd(2, 9)}`, `${dec(11, 49, 1)} × ${dec(11, 29, 1)}`, `${(rnd(3, 30) * dv) / 10} ÷ 0.${dv}`]);
+      return pick([`${(rnd(3, 30) * dv) / 10} ÷ 0.${dv}`, `${dec(101, 999, 2)} × ${dec(11, 99, 1)}`]);
     },
   },
   {
-    id: 'pct', name: 'Percents', sample: '25% of 80',
-    gen: (lv) => {
-      const p = [pick([10, 50, 25, 100]), pick([20, 75, 5, 30, 40]), rnd(1, 19) * 5][lv];
-      return `${p}% of ${rnd(1, 15) * 20}`;
+    id: 'order', name: 'Order of operations', sample: '2 + 3 × (8 − 2)', grades: [4, 8],
+    gen: (t) => {
+      const a = rnd(2, 9), b = rnd(2, 9), c = rnd(2, 9), d = rnd(1, 9);
+      return pick([
+        [`${a} + ${b} × ${c}`, `${a * b + c} − ${a} × ${b}`, `${a} × ${b} + ${c}`],
+        [`(${a} + ${b}) × ${c}`, `${a} × (${b + c} − ${c})`, `${c * a} ÷ ${c} + ${b}`],
+        [`${a} + ${b} × ${c} − ${d}`, `(${a} + ${b}) × ${c} − ${d}`, `${c * (a + b)} ÷ (${a} + ${b}) + ${d}`],
+        [`${a}^2 + ${b} × ${c}`, `(${a} + ${b}) × ${c} − ${d}^2`, `${rnd(2, 5)}^3 − ${a} × ${b}`],
+        [`${a}^2 − (${b} + ${c})^2 ÷ ${b + c}`, `−${a} × ${b} + ${c}^2`, `(${d} − ${a + d}) × ${b} + ${c}`],
+      ][t]);
     },
   },
   {
-    id: 'words', name: 'Word problems', sample: '6 friends share 24…',
-    gen: (lv) => wordProblem(lv).text,
+    id: 'fracmul', name: 'Multiplying fractions', sample: '12 × 3/4', grades: [5, 8],
+    gen: (t) => {
+      const [a, b] = properFrac([2, 3, 4, 5, 6, 8, 10]);
+      const [c, d] = properFrac([2, 3, 4, 5, 6, 8, 9]);
+      return [
+        () => `${b * rnd(1, 6)} × ${a}/${b}`,
+        () => `${a}/${b} × ${c}/${d}`,
+        () => pick([`${a}/${b} ÷ ${rnd(2, 6)}`, `${rnd(2, 6)} ÷ ${a}/${b}`]),
+        () => `${a}/${b} ÷ ${c}/${d}`,
+        () => pick([`${rnd(1, 3)} ${a}/${b} × ${rnd(1, 3)} ${c}/${d}`, `${rnd(1, 4)} ${a}/${b} ÷ ${c}/${d}`]),
+      ][t]();
+    },
   },
   {
-    id: 'eq', name: 'Missing numbers', sample: '3x + 5 = 20',
-    gen: (lv) => {
+    id: 'pct', name: 'Percents', sample: '25% of 80', grades: [6, 8],
+    gen: (t) => {
+      const n = rnd(1, 15) * 20;
+      return [
+        () => `${pick([10, 50, 25, 100])}% of ${n}`,
+        () => `${pick([20, 75, 5, 30, 40])}% of ${n}`,
+        () => `${rnd(1, 19) * 5}% of ${n}`,
+        () => `${rnd(1, 99)}% of ${rnd(1, 9) * 100}`,
+        () => `${pick([12.5, 2.5, 7.5, 150, 120])}% of ${rnd(1, 12) * 40}`,
+      ][t]();
+    },
+  },
+  {
+    id: 'neg', name: 'Negative numbers', sample: '−5 + 8', grades: [6, 8],
+    gen: (t) => {
+      // At least one negative number in every problem.
+      const x = -rnd(1, 12), y = nz(-12, 12);
+      return [
+        () => `${lead(-rnd(1, 9))} + ${rnd(1, 15)}`,
+        () => pick([`${rnd(1, 9)} − ${rnd(10, 20)}`, `${lead(-rnd(1, 9))} − ${rnd(1, 9)}`, `${rnd(1, 9)} − ${sgn(-rnd(1, 9))}`]),
+        () => pick([`${lead(y)} × ${sgn(x)}`, `${lead(x * y)} ÷ ${sgn(y)}`, `${lead(x * y)} ÷ ${sgn(x)}`]),
+        () => pick([`${lead(x)} + ${sgn(y)} × ${rnd(2, 5)}`, `(${lead(x)} − ${sgn(y)}) × ${sgn(nz(-5, 5))}`]),
+        () => pick([`${lead(nz(-30, 30))} − ${sgn(nz(-30, 30))} × ${sgn(nz(-9, 9))}`, `${sgn(x)}^2 − ${rnd(2, 4)}^3`]),
+      ][t]();
+    },
+  },
+  {
+    id: 'eq', name: 'Missing numbers', sample: '3x + 5 = 20', grades: [3, 8],
+    gen: (t) => {
       const x = rnd(2, 12);
-      if (lv === 0) {
-        const a = rnd(2, 12);
-        return pick([`? + ${a} = ${x + a}`, `? × ${a} = ${x * a}`, `${x + a} − ? = ${a}`]);
-      }
       const a = rnd(2, 9), b = rnd(1, 20);
-      if (lv === 1) return Math.random() < 0.5 ? `${a}x + ${b} = ${a * x + b}` : `${a}x − ${b} = ${a * x - b}`;
-      const c = rnd(1, a - 1 || 1);
-      return pick([`${a}(x + ${b}) = ${a * (x + b)}`, `${a}x + ${b} = ${c === 1 ? '' : c}x + ${a * x + b - c * x}`]);
+      return [
+        () => { const k = rnd(2, 20); return pick([`? + ${k} = ${x + k}`, `${x + k} − ? = ${k}`]); },
+        () => pick([`? × ${a} = ${x * a}`, `? ÷ ${a} = ${x}`]),
+        () => (Math.random() < 0.5 ? `${a}x + ${b} = ${a * x + b}` : `${a}x − ${Math.min(b, a * x - 1)} = ${a * x - Math.min(b, a * x - 1)}`),
+        () => { const k = rnd(2, 9); return pick([`${a}(x + ${b}) = ${a * (x + b)}`, `x/${a} + ${b} = ${k + b}`]); },
+        () => {
+          const c = rnd(1, a - 1 || 1), d = rnd(1, x - 1);
+          return pick([`${a}x + ${b} = ${c === 1 ? '' : c}x + ${a * x + b - c * x}`, `${a}(x − ${d}) = ${a * (x - d)}`]);
+        },
+      ][t]();
     },
+  },
+  {
+    id: 'words', name: 'Word problems', sample: '6 friends share 24…', grades: [1, 8],
+    gen: (t) => wordProblem([0, 0, 1, 2, 2][t], t === 0).text,
   },
 ];
+
+// Which tier a kid gets for a topic at their grade and the level they picked.
+// Each grade moves the topic up a tier (at most two), so Easy, Medium and Hard
+// always stay different. No grade set: Easy/Medium/Hard are tiers 1/2/3.
+export function tierFor(topic, grade, level) {
+  if (!grade) return Math.min(4, level + 1);
+  return Math.min(4, Math.max(0, Math.min(2, grade - topic.grades[0])) + level);
+}
+
+// Negative answers only where kids have learned them.
+export const allowsNegatives = (topic, grade) => topic.id === 'neg' || (grade || 0) >= 6;
+
+export const inGrade = (topic, grade) => !grade || (grade >= topic.grades[0] && grade <= topic.grades[1]);
 
 // `accept` lets the caller skip problems (for example ones with negative answers).
 // ---------- word problems ----------
@@ -150,11 +249,12 @@ function twoKids() {
 }
 
 // Returns { text, answer } so tests can check the reader gets the right answer.
-export function wordProblem(level) {
+// `small` keeps the numbers under 20 for the youngest kids.
+export function wordProblem(level, small = false) {
   const [[n, he], [m]] = twoKids();
   const t = pick(THINGS);
   if (level === 0) {
-    const a = rnd(12, 60), b = rnd(5, 30);
+    const a = small ? rnd(3, 12) : rnd(12, 60), b = small ? rnd(2, 8) : rnd(5, 30);
     return pick([
       () => ({ text: `${n} has ${a} ${t}. ${cap1(he)} gets ${b} more. How many ${t} does ${n} have now?`, answer: a + b }),
       () => ({ text: `${n} had ${a + b} ${t}. ${cap1(he)} gave ${b} to ${m}. How many ${t} are left?`, answer: a }),
@@ -190,13 +290,15 @@ export function wordProblem(level) {
   ])();
 }
 
-export function makeRound(topicId, level, count = 10, accept = () => true) {
+// `level` is Easy/Medium/Hard (0-2); `grade` is the kid's school year (1-8) or null.
+export function makeRound(topicId, level, count = 10, accept = () => true, grade = null) {
   const topic = TOPICS.find((t) => t.id === topicId);
+  const tier = tierFor(topic, grade, level);
   const seen = new Set();
   const out = [];
   let guard = 0;
   while (out.length < count && guard++ < 200) {
-    const text = topic.gen(level);
+    const text = topic.gen(tier);
     if (seen.has(text) || !accept(text)) continue;
     seen.add(text);
     out.push(text);

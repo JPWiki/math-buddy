@@ -56,6 +56,7 @@ function fakeCloud(backend) {
       p.stars = (p.stars || 0) + (delta.stars || 0);
       p.solved = (p.solved || 0) + (delta.solved || 0);
       if (delta.bestStreak !== undefined) p.bestStreak = delta.bestStreak;
+      for (const [k, v] of Object.entries(delta.days || {})) { (p.days ||= {})[k] = (p.days[k] || 0) + v; }
       for (const [k, t] of Object.entries(delta.topics || {})) {
         const s = ((p.topics ||= {})[k] ||= { tries: 0, firstTry: 0, right: 0 });
         s.tries += t.tries || 0; s.firstTry += t.firstTry || 0; s.right += t.right || 0;

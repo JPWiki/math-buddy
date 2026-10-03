@@ -2,8 +2,9 @@
 // The Firebase code (js/vendor/firebase.js) only loads on devices that use family sync.
 //
 // Data layout, one family per sign-in account:
-//   families/{uid}                kids: { [kidId]: { name, color, hintFirst, order, deleted? } }
-//   families/{uid}/kids/{kidId}   stars, solved, bestStreak, topics: { [topic]: { tries, firstTry, right } }, history
+//   families/{uid}                kids: { [kidId]: { name, color, grade, hintFirst, order, deleted? } }
+//   families/{uid}/kids/{kidId}   stars, solved, bestStreak, topics: { [topic]: { tries, firstTry, right } },
+//                                 days: { 'YYYY-MM-DD': problems }, history
 
 export async function createFirebaseCloud(config) {
   const f = await import('./vendor/firebase.js');
@@ -43,6 +44,10 @@ export async function createFirebaseCloud(config) {
     if (delta.stars) out.stars = f.increment(delta.stars);
     if (delta.solved) out.solved = f.increment(delta.solved);
     if (delta.bestStreak !== undefined) out.bestStreak = delta.bestStreak;
+    if (delta.days) {
+      out.days = {};
+      for (const [k, v] of Object.entries(delta.days)) if (v) out.days[k] = f.increment(v);
+    }
     if (delta.topics) {
       out.topics = {};
       for (const [k, t] of Object.entries(delta.topics)) {
@@ -86,7 +91,7 @@ export async function createFirebaseCloud(config) {
     },
 
     putKid(id, meta, isNew) {
-      const m = { name: meta.name, color: meta.color ?? 0, hintFirst: meta.hintFirst !== false };
+      const m = { name: meta.name, color: meta.color ?? 0, grade: meta.grade ?? null, hintFirst: meta.hintFirst !== false };
       if (isNew) m.order = Date.now();
       return track(f.setDoc(famRef(), { kids: { [id]: m } }, { merge: true }));
     },
@@ -102,6 +107,7 @@ export async function createFirebaseCloud(config) {
         solved: d.solved || 0,
         bestStreak: d.bestStreak || 0,
         topics: d.topics || {},
+        days: d.days || {},
         history: d.history || [],
       }));
     },

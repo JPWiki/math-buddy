@@ -16,6 +16,7 @@ const progressOf = (d) => ({
   solved: d.solved || 0,
   bestStreak: d.bestStreak || 0,
   topics: d.topics || {},
+  days: d.days || {},
   history: d.history || [],
 });
 
@@ -27,7 +28,10 @@ function addTogether(a, b) {
     const s = topics[k] || { tries: 0, firstTry: 0, right: 0 };
     topics[k] = { tries: s.tries + (t.tries || 0), firstTry: s.firstTry + (t.firstTry || 0), right: s.right + (t.right || 0) };
   }
+  const days = { ...(a.days || {}) };
+  for (const [k, v] of Object.entries(b.days || {})) days[k] = (days[k] || 0) + v;
   return {
+    days,
     stars: a.stars + (b.stars || 0),
     solved: a.solved + (b.solved || 0),
     bestStreak: Math.max(a.bestStreak, b.bestStreak || 0),
@@ -111,7 +115,7 @@ export function createSync({ store, cloud, onChange = () => {}, onStatus = () =>
       } else if (choices[k.meta.name] === 'add' && hasProgress(k.data)) {
         // Add this device's progress on top of the family account's.
         const delta = progressOf(k.data);
-        await cloud.addProgress(cloudId, { stars: delta.stars, solved: delta.solved, topics: delta.topics, bestStreak: delta.bestStreak });
+        await cloud.addProgress(cloudId, { stars: delta.stars, solved: delta.solved, topics: delta.topics, days: delta.days, bestStreak: delta.bestStreak });
         const r = result.find((x) => x.id === cloudId);
         r.data = addTogether(r.data, delta);
       }
@@ -176,6 +180,7 @@ export function createSync({ store, cloud, onChange = () => {}, onStatus = () =>
         cloud.addProgress(ev.id, {
           solved: ev.right ? 1 : 0,
           topics: { [ev.topic]: { tries: 1, firstTry: ev.firstTry ? 1 : 0, right: ev.right ? 1 : 0 } },
+          days: ev.day ? { [ev.day]: 1 } : undefined,
           bestStreak: ev.bestStreak > (known.bestStreak || 0) ? ev.bestStreak : undefined,
         });
         break;

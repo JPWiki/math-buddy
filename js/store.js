@@ -14,9 +14,24 @@ const fresh = () => ({
   bestStreak: 0,
   solved: 0,
   topics: {},
+  days: {}, // problems answered per day, 'YYYY-MM-DD' -> count (last 60 days)
   history: [],
   settings: { hintFirst: true },
 });
+
+// The local calendar day, so "this week" matches the kid's own week.
+export function dayKey(date = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
+}
+
+const validGrade = (g) => (Number.isInteger(Number(g)) && Number(g) >= 1 && Number(g) <= 8 ? Number(g) : null);
+
+function trimDays(days) {
+  const keys = Object.keys(days).sort();
+  for (const k of keys.slice(0, Math.max(0, keys.length - 60))) delete days[k];
+  return days;
+}
 
 const withDefaults = (d) => ({ ...fresh(), ...d, settings: { ...fresh().settings, ...((d && d.settings) || {}) } });
 const cleanName = (name) => String(name).trim().replace(/\s+/g, ' ').slice(0, MAX_NAME);
@@ -80,7 +95,7 @@ export function createStore(storage = browserStorage()) {
   const data = () => (current() ? current().data : (scratch ||= fresh()));
   const byId = (id) => root.profiles.find((p) => p.id === id) || null;
   const findByName = (name) => root.profiles.find((p) => p.name.toLowerCase() === String(name).toLowerCase()) || null;
-  const meta = (p) => ({ name: p.name, color: p.color, hintFirst: p.data.settings.hintFirst !== false });
+  const meta = (p) => ({ name: p.name, color: p.color, grade: p.grade ?? null, hintFirst: p.data.settings.hintFirst !== false });
   const freeColor = (wanted) => {
     const used = new Set(root.profiles.map((x) => x.color));
     if (wanted !== undefined && !used.has(wanted)) return wanted;
@@ -93,10 +108,19 @@ export function createStore(storage = browserStorage()) {
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
     // ---- profiles ----
-    profiles: () => root.profiles.map(({ id, name, color, data: d }) => ({ id, name, color, stars: d.stars })),
+    profiles: () => root.profiles.map(({ id, name, color, grade, data: d }) => ({ id, name, color, grade: grade ?? null, stars: d.stars })),
+    // Every kid with their full progress, for the family view.
+    family: () => root.profiles.map(({ id, name, color, grade, data: d }) => ({ id, name, color, grade: grade ?? null, data: d })),
     current: () => {
       const p = current();
-      return p ? { id: p.id, name: p.name, color: p.color } : null;
+      return p ? { id: p.id, name: p.name, color: p.color, grade: p.grade ?? null } : null;
+    },
+    setGrade(id, grade) {
+      const p = byId(id);
+      if (!p) return;
+      p.grade = validGrade(grade);
+      save();
+      emit({ type: 'kid', id, meta: meta(p) });
     },
     hasOldProgress: () => !!root.pending,
     addProfile(name) {
@@ -164,10 +188,12 @@ export function createStore(storage = browserStorage()) {
       if (right) t.right++;
       d.topics[topic] = t;
       if (right) d.solved++;
+      const day = dayKey();
+      d.days = trimDays({ ...(d.days || {}), [day]: ((d.days || {})[day] || 0) + 1 });
       d.streak = firstTry ? d.streak + 1 : right ? d.streak : 0;
       d.bestStreak = Math.max(d.bestStreak, d.streak);
       save();
-      if (current()) emit({ type: 'practice', id: root.current, topic, firstTry, right, bestStreak: d.bestStreak });
+      if (current()) emit({ type: 'practice', id: root.current, topic, firstTry, right, day, bestStreak: d.bestStreak });
       return d.streak;
     },
     reset() {
@@ -186,7 +212,7 @@ export function createStore(storage = browserStorage()) {
         format: BACKUP_FORMAT,
         appVersion,
         savedAt: new Date().toISOString(),
-        profiles: root.profiles.map(({ name, color, data: d }) => ({ name, color, data: d })),
+        profiles: root.profiles.map(({ name, color, grade, data: d }) => ({ name, color, grade: grade ?? null, data: d })),
       };
     },
     // What loading a backup would do: which kids are new and whose progress gets replaced.
@@ -203,10 +229,11 @@ export function createStore(storage = browserStorage()) {
         const here = findByName(p.name);
         if (here) {
           here.data = withDefaults(p.data);
+          if (p.grade) here.grade = p.grade;
           replaced++;
           emit({ type: 'replace', id: here.id, meta: meta(here), data: here.data });
         } else {
-          const np = { id: newId(), name: p.name, color: freeColor(p.color), data: withDefaults(p.data) };
+          const np = { id: newId(), name: p.name, color: freeColor(p.color), grade: p.grade || null, data: withDefaults(p.data) };
           root.profiles.push(np);
           added++;
           emit({ type: 'kid', id: np.id, meta: meta(np), data: np.data });
@@ -240,6 +267,7 @@ export function createStore(storage = browserStorage()) {
         id: k.id,
         name: k.meta.name,
         color: k.meta.color ?? 0,
+        grade: validGrade(k.meta.grade),
         data: withDefaults({ ...k.data, settings: { hintFirst: k.meta.hintFirst !== false } }),
       }));
       const again = currentName && findByName(currentName);
@@ -257,9 +285,10 @@ export function createStore(storage = browserStorage()) {
         if (p) {
           p.name = m.name;
           p.color = m.color ?? p.color;
+          p.grade = validGrade(m.grade);
           p.data.settings.hintFirst = m.hintFirst !== false;
         } else {
-          root.profiles.push({ id, name: m.name, color: m.color ?? 0, data: withDefaults({ settings: { hintFirst: m.hintFirst !== false } }) });
+          root.profiles.push({ id, name: m.name, color: m.color ?? 0, grade: validGrade(m.grade), data: withDefaults({ settings: { hintFirst: m.hintFirst !== false } }) });
         }
       }
       if (!current()) root.current = root.profiles[0] ? root.profiles[0].id : null;
@@ -279,6 +308,7 @@ export function createStore(storage = browserStorage()) {
         solved: d.solved || 0,
         bestStreak: Math.max(d.bestStreak || 0, p.data.streak || 0),
         topics,
+        days: d.days && typeof d.days === 'object' ? trimDays({ ...d.days }) : p.data.days,
         history: Array.isArray(d.history) ? d.history.slice(0, 15) : p.data.history,
       };
       save();
@@ -314,8 +344,11 @@ export function readBackup(text) {
     for (const [k, t] of Object.entries(d.topics || {})) {
       if (/^[a-z]{1,20}$/.test(k) && t) topics[k] = { tries: count(t.tries), firstTry: count(t.firstTry), right: count(t.right) };
     }
+    const days = {};
+    for (const [k, v] of Object.entries(d.days || {})) if (/^\d{4}-\d{2}-\d{2}$/.test(k)) days[k] = count(v);
     profiles.push({
       name,
+      grade: validGrade(p.grade),
       color: Math.min(COLORS - 1, count(p.color)),
       data: withDefaults({
         stars: count(d.stars),
@@ -323,6 +356,7 @@ export function readBackup(text) {
         bestStreak: count(d.bestStreak),
         solved: count(d.solved),
         topics,
+        days: trimDays(days),
         history: (Array.isArray(d.history) ? d.history : []).filter((h) => typeof h === 'string').map((h) => h.slice(0, 400)).slice(0, 15),
         settings: { hintFirst: !d.settings || d.settings.hintFirst !== false },
       }),

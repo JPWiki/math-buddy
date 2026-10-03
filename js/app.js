@@ -1,7 +1,7 @@
 import { solve, checkAnswer } from './solver.js';
 import { MathError } from './rational.js';
-import { TOPICS, LEVELS, makeRound } from './practice.js';
-import { store, readBackup } from './store.js';
+import { TOPICS, LEVELS, LEVEL_STARS, GRADES, gradeLabel, gradeAges, makeRound, inGrade, allowsNegatives } from './practice.js';
+import { store, readBackup, dayKey } from './store.js';
 import { APP_VERSION } from './version.js';
 import { FIREBASE_CONFIG } from './config.js';
 import { esc } from './format.js';
@@ -228,10 +228,18 @@ function setupSolve() {
 let level = 0;
 let round = null;
 
+let showAllTopics = false;
+
 function renderTopics() {
   const stats = store.get().topics;
-  $('#level').innerHTML = LEVELS.map((l, i) => `<button type="button" role="radio" aria-checked="${i === level}" data-level="${i}">${l}</button>`).join('');
-  $('#topics').innerHTML = TOPICS.map((t) => {
+  const kid = store.current();
+  const grade = kid && kid.grade;
+  $('#level').innerHTML = LEVELS.map((l, i) => `<button type="button" role="radio" aria-checked="${i === level}" data-level="${i}">${l} <small>★${LEVEL_STARS[i]}</small></button>`).join('');
+  $('#grade-line').innerHTML = grade
+    ? `<b>${gradeLabel(grade)}</b> topics${kid ? ` for ${esc(kid.name)}` : ''}. <button type="button" class="linkish" data-gl="toggle">${showAllTopics ? 'Show only this grade' : 'Show all topics'}</button>`
+    : `No school year set, so every topic is shown. A grown-up can set it under <a href="#progress">Progress</a>.`;
+  const list = TOPICS.filter((t) => !grade || showAllTopics || inGrade(t, grade));
+  $('#topics').innerHTML = list.map((t) => {
     const s = stats[t.id];
     const pct = s && s.tries ? Math.round((100 * s.firstTry) / s.tries) : null;
     return `<button type="button" class="topic" data-topic="${t.id}">
@@ -253,11 +261,13 @@ function noNegatives(text) {
 
 function startRound(topicId) {
   const topic = TOPICS.find((t) => t.id === topicId);
-  round = { topic, problems: makeRound(topicId, level, 10, noNegatives), i: 0, results: [], tries: 0, stars: 0, firstTry: 0 };
+  const grade = (store.current() || {}).grade || null;
+  const accept = allowsNegatives(topic, grade) ? () => true : noNegatives;
+  round = { topic, grade, problems: makeRound(topicId, level, 10, accept, grade), i: 0, results: [], tries: 0, stars: 0, firstTry: 0 };
   $('#practice-setup').hidden = true;
   $('#practice-done').hidden = true;
   $('#practice-play').hidden = false;
-  $('#play-topic').innerHTML = `<span class="label">${esc(topic.name)} · ${LEVELS[level]}</span>`;
+  $('#play-topic').innerHTML = `<span class="label">${esc(topic.name)} · ${LEVELS[level]}${grade ? ` · ${gradeLabel(grade)}` : ''}</span>`;
   showQuestion();
 }
 
@@ -292,7 +302,7 @@ function finishQuestion(right, firstTry) {
   drawDots();
   if (firstTry) round.firstTry++;
   const streak = store.recordPractice(round.topic.id, { firstTry, right });
-  let gained = firstTry ? 1 : 0;
+  let gained = firstTry ? LEVEL_STARS[level] : 0;
   if (firstTry && streak > 0 && streak % 5 === 0) {
     gained += 3;
     toast(`${streak} in a row! +3 bonus stars`);
@@ -320,7 +330,7 @@ function checkPractice() {
   round.tries++;
   if (r.ok) {
     fb.className = 'feedback good';
-    fb.innerHTML = `<span class="grow">${round.tries === 1 ? `${pick(CHEERS)} +1 star` : 'Yes! You got it on the second try.'}</span>`;
+    fb.innerHTML = `<span class="grow">${round.tries === 1 ? `${pick(CHEERS)} +${LEVEL_STARS[level]} star${LEVEL_STARS[level] > 1 ? 's' : ''}` : 'Yes! You got it on the second try.'}</span>`;
     finishQuestion(true, round.tries === 1);
   } else if (round.tries === 1) {
     fb.className = 'feedback bad';
@@ -350,6 +360,7 @@ function endRound() {
     <div class="score">${right} / ${total}</div>
     <h2>${msg}</h2>
     <p class="muted">${round.firstTry} right on the first try · ${round.stars} star${round.stars === 1 ? '' : 's'} earned</p>
+    ${level === 2 && right >= 9 && round.grade && round.grade < 8 ? `<p class="tip">Brilliant on Hard for ${gradeLabel(round.grade)}! Ask a grown-up about moving up to ${gradeLabel(round.grade + 1)}.</p>` : ''}
     <div class="row">
       <button type="button" class="primary" id="again">Play again</button>
       ${level < 2 && right >= 8 ? '<button type="button" class="ghost" id="harder">Try a harder level</button>' : ''}
@@ -380,6 +391,11 @@ function setupPractice() {
   $('#topics').onclick = (e) => {
     const b = e.target.closest('button');
     if (b) startRound(b.dataset.topic);
+  };
+  $('#grade-line').onclick = (e) => {
+    if (!e.target.closest('[data-gl]')) return;
+    showAllTopics = !showAllTopics;
+    renderTopics();
   };
   $('#quit').onclick = backToTopics;
   $('#answer-form').onsubmit = (e) => { e.preventDefault(); checkPractice(); };
@@ -420,16 +436,137 @@ function manageHTML(kid) {
     return `<p style="margin:0 0 10px">Delete ${name}'s profile and all of their progress? This can't be undone.</p>
       <div class="row"><button type="button" class="ghost danger" data-m="delete-yes">Yes, delete ${name}</button><button type="button" class="ghost" data-m="cancel">Cancel</button></div>`;
   }
-  return `<div class="row">
+  return `<div class="grade-row">
+      <label for="grade-select">School year</label>
+      <select id="grade-select" class="grade-select">${gradeOptions(kid.grade)}</select>
+    </div>
+    <p class="muted small-note" style="margin:0 0 12px">Practice shows the topics for this school year, and Easy, Medium and Hard get harder as it goes up.</p>
+    <div class="row">
       <button type="button" class="ghost small" data-m="rename">Rename</button>
       <button type="button" class="ghost small" data-m="reset">Reset progress</button>
       <button type="button" class="ghost small danger" data-m="delete">Delete profile</button>
     </div>`;
 }
 
+
+// <option>s for the school-year pickers.
+function gradeOptions(selected) {
+  return `<option value="">School year: not set</option>${GRADES.map((g) => `<option value="${g}"${g === selected ? ' selected' : ''}>${gradeLabel(g)} (${gradeAges(g)})</option>`).join('')}`;
+}
+
+// ---------- family view: every kid side by side, for grown-ups ----------
+
+let progressView = 'kid'; // 'kid' or 'family'
+
+function firstTryRate(topics) {
+  let tries = 0, first = 0;
+  for (const t of Object.values(topics || {})) { tries += t.tries || 0; first += t.firstTry || 0; }
+  return tries ? { pct: Math.round((100 * first) / tries), tries } : null;
+}
+
+function lastDays(n) {
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    out.push({ key: dayKey(d), label: d.toLocaleDateString(undefined, { weekday: 'narrow' }), full: d.toLocaleDateString(undefined, { weekday: 'long' }) });
+  }
+  return out;
+}
+
+const band = (pct) => (pct >= 80 ? 'good' : pct >= 60 ? 'ok' : 'low');
+
+function weakestTopic(topics) {
+  return TOPICS.map((t) => ({ t, st: (topics || {})[t.id] }))
+    .filter((r) => r.st && r.st.tries >= 5)
+    .sort((a, b) => a.st.firstTry / a.st.tries - b.st.firstTry / b.st.tries)[0] || null;
+}
+
+function familyHTML() {
+  const kids = store.family();
+  const week = lastDays(7);
+  const avatar = (k) => `<span class="avatar c${k.color}" aria-hidden="true">${esc((k.name.match(/\p{L}|\p{N}/u) || ['?'])[0].toUpperCase())}</span>`;
+  const cards = kids.map((k) => {
+    const d = k.data;
+    const rate = firstTryRate(d.topics);
+    const thisWeek = week.reduce((n, w) => n + ((d.days || {})[w.key] || 0), 0);
+    const weak = weakestTopic(d.topics);
+    const weakPct = weak ? Math.round((100 * weak.st.firstTry) / weak.st.tries) : null;
+    return `<article class="fam-kid">
+      <header>${avatar(k)}<div><b>${esc(k.name)}</b><small>${k.grade ? `${gradeLabel(k.grade)} · ${gradeAges(k.grade)}` : 'School year not set'}</small></div></header>
+      <dl>
+        <div><dt>Stars</dt><dd>★ ${d.stars}</dd></div>
+        <div><dt>Right first try</dt><dd>${rate ? `<span class="pct ${band(rate.pct)}">${rate.pct}%</span>` : '–'}</dd></div>
+        <div><dt>This week</dt><dd>${thisWeek} problem${thisWeek === 1 ? '' : 's'}</dd></div>
+        <div><dt>Problems right</dt><dd>${d.solved}</dd></div>
+        <div><dt>Best streak</dt><dd>${d.bestStreak}</dd></div>
+      </dl>
+      <p class="fam-note">${weak && weakPct < 80 ? `Needs practice: <b>${esc(weak.t.name)}</b> (${weakPct}%)` : rate ? 'Doing well in every topic tried so far.' : 'No practice yet.'}</p>
+      <button type="button" class="ghost small" data-open="${k.id}">See ${esc(k.name)}'s progress</button>
+    </article>`;
+  }).join('');
+
+  const tried = TOPICS.filter((t) => kids.some((k) => ((k.data.topics || {})[t.id] || {}).tries));
+  const topicTable = tried.length ? `<div class="table-scroll"><table class="fam-table">
+      <thead><tr><th scope="col">Topic</th>${kids.map((k) => `<th scope="col">${esc(k.name)}</th>`).join('')}</tr></thead>
+      <tbody>${tried.map((t) => `<tr><th scope="row">${esc(t.name)}</th>${kids.map((k) => {
+        const st = (k.data.topics || {})[t.id];
+        if (!st || !st.tries) return '<td class="none">–</td>';
+        const pct = Math.round((100 * st.firstTry) / st.tries);
+        return `<td><span class="pct ${band(pct)}">${pct}%</span><small>${st.tries}</small></td>`;
+      }).join('')}</tr>`).join('')}</tbody>
+    </table></div>` : '<p class="muted">No practice yet. Topics show up here once the kids practice.</p>';
+
+  const max = Math.max(1, ...kids.flatMap((k) => week.map((w) => (k.data.days || {})[w.key] || 0)));
+  const weekTable = `<div class="table-scroll"><table class="fam-table week">
+      <thead><tr><th scope="col">Kid</th>${week.map((w, i) => `<th scope="col" title="${esc(w.full)}"${i === week.length - 1 ? ' class="today"' : ''}>${esc(w.label)}</th>`).join('')}</tr></thead>
+      <tbody>${kids.map((k) => `<tr><th scope="row">${esc(k.name)}</th>${week.map((w) => {
+        const n = (k.data.days || {})[w.key] || 0;
+        return `<td><span class="heat" style="--h:${n ? 0.15 + 0.85 * (n / max) : 0}">${n || ''}</span></td>`;
+      }).join('')}</tr>`).join('')}</tbody>
+    </table></div>`;
+
+  return `<div class="fam-grid">${cards}</div>
+    <div class="card">
+      <h2>Topics side by side</h2>
+      <p class="muted">Percent right on the first try. The small number is how many problems they've done.
+        <span class="key"><span class="pct good">80%+</span> <span class="pct ok">60–79%</span> <span class="pct low">under 60%</span></span></p>
+      ${topicTable}
+    </div>
+    <div class="card">
+      <h2>Practice in the last 7 days</h2>
+      <p class="muted">Problems answered each day. The last column is today.</p>
+      ${weekTable}
+    </div>`;
+}
+
 function renderProgress() {
   const s = store.get();
   const kid = store.current();
+  const many = store.profiles().length > 1;
+  if (!many) progressView = 'kid';
+  $('#progress-switch').hidden = !many;
+  $('#progress-switch').innerHTML = many ? `
+    <button type="button" role="tab" aria-selected="${progressView === 'kid'}" data-pv="kid">${esc(kid ? kid.name : 'Kid')}</button>
+    <button type="button" role="tab" aria-selected="${progressView === 'family'}" data-pv="family">Family</button>` : '';
+  $('#progress-switch').onclick = (e) => {
+    const b = e.target.closest('[data-pv]');
+    if (!b) return;
+    progressView = b.dataset.pv;
+    renderProgress();
+  };
+  if (progressView === 'family') {
+    $('#progress-h').textContent = 'Family progress';
+    $('#progress-body').innerHTML = familyHTML();
+    $('#progress-body').onclick = (e) => {
+      const b = e.target.closest('[data-open]');
+      if (!b) return;
+      progressView = 'kid';
+      store.switchTo(b.dataset.open);
+      onKidChanged();
+    };
+    return;
+  }
   $('#progress-h').textContent = kid ? `${kid.name}'s progress` : 'Progress';
   const rows = TOPICS.map((t) => ({ t, st: s.topics[t.id] })).filter((r) => r.st && r.st.tries);
   const weak = rows.filter((r) => r.st.tries >= 5).sort((a, b) => a.st.firstTry / a.st.tries - b.st.firstTry / b.st.tries)[0];
@@ -501,6 +638,14 @@ function renderProgress() {
     renderProgress();
     if (manage === 'rename') { const i = $('#rename-input'); i.focus(); i.select(); }
   };
+  const gs = $('#grade-select');
+  if (gs) {
+    gs.onchange = () => {
+      store.setGrade(kid.id, gs.value || null);
+      const g = store.current().grade;
+      toast(g ? `${kid.name}: ${gradeLabel(g)}` : `${kid.name}: school year not set`);
+    };
+  }
   const rename = $('#rename-form');
   if (rename) {
     rename.onsubmit = (e) => {
@@ -827,6 +972,7 @@ function openWho() {
   $('#who-list').innerHTML = list.map((p) => kidButton(p, !!kid && p.id === kid.id)).join('');
   $('#who-error').hidden = true;
   $('#kid-name').value = '';
+  $('#kid-grade').innerHTML = gradeOptions(null);
   $('#who-close').hidden = !kid;
   $('#who-sync').hidden = !FIREBASE_CONFIG || !!store.syncInfo();
   if (backupWhere === 'who') { pendingBackup = null; backupNote = null; }
@@ -883,7 +1029,8 @@ function setupWho() {
   $('#add-kid').onsubmit = (e) => {
     e.preventDefault();
     try {
-      store.addProfile($('#kid-name').value);
+      const id = store.addProfile($('#kid-name').value);
+      if ($('#kid-grade').value) store.setGrade(id, $('#kid-grade').value);
     } catch (err) {
       $('#who-error').textContent = err.message;
       $('#who-error').hidden = false;

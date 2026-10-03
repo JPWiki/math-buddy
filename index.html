@@ -73,8 +73,9 @@
   <section id="view-practice" class="view" aria-labelledby="practice-h" hidden>
     <div id="practice-setup">
       <h1 id="practice-h">Practice</h1>
-      <p class="lede">Pick a topic. You get 10 problems and a star for every one you get right on the first try.</p>
+      <p class="lede">Pick a level and a topic. You get 10 problems. Every one you get right on the first try earns stars: ★1 on Easy, ★2 on Medium, ★3 on Hard.</p>
       <div class="level" role="radiogroup" aria-label="Level" id="level"></div>
+      <p id="grade-line" class="muted grade-line"></p>
       <div class="topics" id="topics"></div>
     </div>
 
@@ -108,9 +109,13 @@
   <!-- PROGRESS -->
   <section id="view-progress" class="view" aria-labelledby="progress-h" hidden>
     <h1 id="progress-h">Progress</h1>
+    <div id="progress-switch" class="seg" role="tablist" aria-label="Whose progress" hidden></div>
     <div id="progress-body"></div>
   </section>
-  <footer class="credit">Math Buddy v<span id="app-version"></span> · Built by Jeegar using Claude Code</footer>
+  <footer class="credit">
+    <span>Math Buddy v<span id="app-version"></span></span>
+    <span>Built by Jeegar using Claude Code</span>
+  </footer>
 </main>
 <input id="backup-input" type="file" hidden>
 
@@ -129,6 +134,8 @@
       <label for="kid-name" class="label">Add a kid</label>
       <div class="add-row">
         <input id="kid-name" type="text" maxlength="20" placeholder="Name" autocapitalize="words" spellcheck="false">
+        <label for="kid-grade" class="sr-only">School year</label>
+        <select id="kid-grade" class="grade-select" title="School year (optional)"></select>
         <button class="primary" type="submit">Add</button>
       </div>
     </form>

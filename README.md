@@ -14,7 +14,14 @@ Android SDK, no account, no server.
   equations by doing the same thing to both sides (plus a check at the end).
 - **Let me try first** (on by default): the kid answers first, then can ask for a hint or
   reveal one step at a time. The full answer only appears at the end.
-- **Practice**: 12 topics (including word problems) × 3 levels, 10 problems a round, an on-screen keypad, a hint after a
+- **School year**: set each kid's grade (1–8, shown with ages) when adding them or under
+  Progress → For grown-ups. Practice then shows that grade's topics, and Easy, Medium and
+  Hard get harder as the grade goes up (each topic has five difficulty steps).
+- **Stars by level**: right on the first try earns ★1 on Easy, ★2 on Medium, ★3 on Hard.
+- **Family view**: Progress → Family compares every kid side by side: stars, first-try
+  accuracy, problems this week, best streak, what each needs to practice, a topic-by-topic
+  table and the last 7 days of practice.
+- **Practice**: 13 topics (including word problems and negative numbers) × 3 levels, 10 problems a round, an on-screen keypad, a hint after a
   wrong first try, and "Show me how" after a second miss. Stars and streaks.
 - **Profiles**: one per kid, each with their own stars, streaks, stats, recent problems and
   settings. Tap the name in the header to switch kids or add one. Rename, reset or delete a
