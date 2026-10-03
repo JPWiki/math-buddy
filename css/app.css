@@ -175,6 +175,14 @@ main { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 20
 .add-row input:focus, .rename-row input:focus { border-color: var(--accent); outline: none; }
 .rename-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* moving progress */
+.load-preview { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); display: flex; flex-direction: column; gap: 8px; }
+.load-preview p { margin: 0; }
+.load-preview ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+.who-load { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); }
+#who-backup:empty { display: none; }
+.credit { margin-top: 28px; text-align: center; font-size: 0.8rem; color: var(--ink-soft); }
+
 /* ---------- buttons and inputs ---------- */
 .primary, .ghost, .chip-btn {
   border-radius: 999px;

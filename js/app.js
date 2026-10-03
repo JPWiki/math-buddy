@@ -1,7 +1,8 @@
 import { solve, checkAnswer } from './solver.js';
 import { MathError } from './rational.js';
 import { TOPICS, LEVELS, makeRound } from './practice.js';
-import { store } from './store.js';
+import { store, readBackup } from './store.js';
+import { APP_VERSION } from './version.js';
 import { esc } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -461,9 +462,18 @@ function renderProgress() {
     </div>` : ''}
     ${kid ? `<div class="card">
       <h2>For grown-ups</h2>
-      <p class="muted" style="margin:6px 0 12px">Progress is saved on this device only. Nothing is uploaded.</p>
+      <p class="muted" style="margin:6px 0 12px">Progress is saved on this device. Nothing is uploaded.</p>
       ${manageHTML(kid)}
-    </div>` : ''}`;
+    </div>` : ''}
+    <div class="card">
+      <h2>Move progress to another device</h2>
+      <p class="muted" style="margin:6px 0 12px">Save every kid's progress to a file. Choose <b>Drive</b> to keep it in Google Drive. On the other device, open Math Buddy and tap <b>Load progress</b>.</p>
+      <div class="row">
+        <button type="button" class="primary small" data-b="save">Save progress</button>
+        <button type="button" class="ghost small" data-b="load">Load progress</button>
+      </div>
+      <div id="progress-backup">${backupPreviewHTML('progress')}</div>
+    </div>`;
 
   const body = $('#progress-body');
   body.onclick = (e) => {
@@ -471,6 +481,7 @@ function renderProgress() {
     if (!b) return;
     if (b.dataset.h) { problemInput.value = b.dataset.h; location.hash = '#solve'; fitProblem(); runSolve(b.dataset.h); return; }
     if (b.dataset.kid) { switchKid(b.dataset.kid); return; }
+    if (b.dataset.b) { handleBackup(b.dataset.b, 'progress'); return; }
     const m = b.dataset.m;
     if (!m) return;
     if (m === 'cancel') manage = null;
@@ -502,6 +513,107 @@ function renderProgress() {
       }
     };
   }
+}
+
+// ---------- moving progress between devices ----------
+
+let pendingBackup = null; // a checked file waiting for "Load progress"
+let backupNote = null; // { text, error } shown under the buttons
+let backupWhere = 'progress'; // where the Load button was tapped: 'progress' or 'who'
+
+function backupPreviewHTML(where) {
+  if (backupWhere !== where) return '';
+  if (!pendingBackup) {
+    return backupNote ? `<p class="${backupNote.error ? 'error' : 'tip'}" style="margin-top:12px">${esc(backupNote.text)}</p>` : '';
+  }
+  const items = store.previewBackup(pendingBackup);
+  const when = pendingBackup.savedAt && !Number.isNaN(pendingBackup.savedAt.getTime())
+    ? ` (saved ${pendingBackup.savedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })})`
+    : '';
+  return `<div class="load-preview">
+    <p><b>This file has${when}:</b></p>
+    <ul>${items.map((i) => `<li><b>${esc(i.name)}</b> \u2605 ${i.stars}: ${i.replaces ? `replaces ${esc(i.replaces.name)}'s progress on this device (\u2605 ${i.replaces.stars})` : 'new on this device'}</li>`).join('')}</ul>
+    <div class="row">
+      <button type="button" class="primary small" data-b="load-yes">Load progress</button>
+      <button type="button" class="ghost small" data-b="load-no">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function redrawBackup() {
+  if (backupWhere === 'who') $('#who-backup').innerHTML = backupPreviewHTML('who');
+  else if (!$('#view-progress').hidden) renderProgress();
+}
+
+// Android's share sheet lets you pick Drive. Chrome only shares some file types,
+// so try a .json file first, then the same text as a .txt file, then a plain download.
+async function saveBackup() {
+  if (!store.profiles().length) {
+    backupNote = { text: 'There is no progress to save yet. Add a kid first.', error: true };
+    return redrawBackup();
+  }
+  const text = JSON.stringify(store.exportBackup(APP_VERSION), null, 2);
+  const day = new Date().toISOString().slice(0, 10);
+  const base = `math-buddy-progress-${day}`;
+  const candidates = [
+    new File([text], `${base}.json`, { type: 'application/json' }),
+    new File([text], `${base}.txt`, { type: 'text/plain' }),
+  ];
+  const shareable = navigator.canShare && candidates.find((f) => { try { return navigator.canShare({ files: [f] }); } catch { return false; } });
+  if (shareable) {
+    try {
+      await navigator.share({ files: [shareable], title: 'Math Buddy progress' });
+      backupNote = { text: `Saved ${shareable.name}. Keep it somewhere you can reach from the other device, like Google Drive.`, error: false };
+      return redrawBackup();
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+  }
+  const url = URL.createObjectURL(candidates[0]);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = candidates[0].name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  backupNote = { text: `Saved ${candidates[0].name} to this device's Downloads. Upload it to Google Drive to use it on another device.`, error: false };
+  redrawBackup();
+}
+
+function handleBackup(action, where) {
+  backupWhere = where;
+  if (action === 'save') { backupNote = null; saveBackup(); return; }
+  if (action === 'load') { backupNote = null; pendingBackup = null; $('#backup-input').click(); return; }
+  if (action === 'load-no') { pendingBackup = null; backupNote = null; redrawBackup(); return; }
+  if (action === 'load-yes' && pendingBackup) {
+    const names = pendingBackup.profiles.map((p) => p.name);
+    const { added, replaced } = store.loadBackup(pendingBackup);
+    pendingBackup = null;
+    backupNote = { text: `Loaded progress for ${names.join(', ')}.${added ? ` ${added} new.` : ''}${replaced ? ` ${replaced} updated.` : ''}`, error: false };
+    if (where === 'who') $('#who-sheet').hidden = true;
+    onKidChanged();
+    redrawBackup();
+    toast('Progress loaded');
+  }
+}
+
+function setupBackup() {
+  $('#backup-input').onchange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      if (file.size > 1_000_000) throw new Error("That file is too big to be a Math Buddy progress file.");
+      pendingBackup = readBackup(await file.text());
+      backupNote = null;
+    } catch (err) {
+      pendingBackup = null;
+      backupNote = { text: err.message || "Couldn't read that file.", error: true };
+    }
+    redrawBackup();
+  };
+  $('#app-version').textContent = APP_VERSION;
 }
 
 // ---------- profiles ----------
@@ -539,6 +651,8 @@ function openWho() {
   $('#who-error').hidden = true;
   $('#kid-name').value = '';
   $('#who-close').hidden = !kid;
+  if (backupWhere === 'who') { pendingBackup = null; backupNote = null; }
+  $('#who-backup').innerHTML = '';
   $('#who-sheet').hidden = false;
   if (!list.length) $('#kid-name').focus();
 }
@@ -571,6 +685,8 @@ function setupWho() {
   $('#who-close').onclick = closeWho;
   $('#who-sheet').onclick = (e) => {
     if (e.target === e.currentTarget) return closeWho();
+    const bb = e.target.closest('button[data-b]');
+    if (bb) return handleBackup(bb.dataset.b, 'who');
     const b = e.target.closest('button[data-kid]');
     if (b) switchKid(b.dataset.kid);
   };
@@ -634,6 +750,7 @@ setupPractice();
 updateStars();
 window.addEventListener('hashchange', () => route());
 route();
+setupBackup();
 setupWho();
 
 // Open with a worked example so the first screen shows what the app does.

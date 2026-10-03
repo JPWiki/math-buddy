@@ -110,7 +110,9 @@
     <h1 id="progress-h">Progress</h1>
     <div id="progress-body"></div>
   </section>
+  <footer class="credit">Math Buddy v<span id="app-version"></span> · Built by Jeegar using Claude Code</footer>
 </main>
+<input id="backup-input" type="file" hidden>
 
 <nav class="tabs" aria-label="Sections">
   <a href="#solve" data-tab="solve"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Solve</a>
@@ -131,6 +133,11 @@
       </div>
     </form>
     <p id="who-error" class="error" role="alert" hidden></p>
+    <div class="who-load">
+      <span class="muted">Moving from another device?</span>
+      <button type="button" class="ghost small" data-b="load">Load progress from a file</button>
+    </div>
+    <div id="who-backup"></div>
     <button id="who-close" class="ghost small" type="button">Close</button>
   </div>
 </div>

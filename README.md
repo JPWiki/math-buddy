@@ -1,5 +1,7 @@
 # Math Buddy
 
+Built by Jeegar using Claude Code.
+
 A math helper for kids, built as a Progressive Web App (PWA). It works in any modern browser,
 can be installed to an Android or iPhone home screen, and runs offline. No app store, no
 Android SDK, no account, no server.
@@ -18,7 +20,11 @@ Android SDK, no account, no server.
   settings. Tap the name in the header to switch kids or add one. Rename, reset or delete a
   profile under Progress → For grown-ups.
 - **Progress**: stars, best streak, and first-try accuracy per topic, with a "worth more
-  practice" tip. Saved on the device only.
+  practice" tip. Saved on the device.
+- **Move progress to another device**: Progress → *Save progress* writes every kid's progress
+  to a small JSON file (on Android, pick **Drive** in the share sheet). On the other device,
+  tap *Load progress* (or *Load progress from a file* on the first screen) and pick the file.
+  Kids in the file replace the same-named kid on that device or are added; other kids stay.
 - **Camera (optional)**: snap a printed problem. The text goes into the box so the kid can check
   it before solving. This downloads an OCR library (Tesseract.js) the first time, so it needs
   internet; everything else works offline. Handwriting recognition is hit-and-miss.
@@ -96,5 +102,6 @@ js/words.js           reads word problems (question, numbers, clue words)
 js/practice.js        practice problem generators
 js/store.js           kid profiles and progress, saved in localStorage
 js/ocr.js             optional photo reading (loads Tesseract.js on first use)
-sw.js                 offline cache (bump VERSION when files change)
+js/version.js         app version shown in the footer and saved in progress files
+sw.js                 offline cache (change VERSION to match js/version.js on every release)
 ```

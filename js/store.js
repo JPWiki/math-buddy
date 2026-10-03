@@ -1,4 +1,5 @@
-// Progress lives on this device only (localStorage). Nothing is sent anywhere.
+// Progress lives on this device (localStorage). Nothing is sent anywhere; grown-ups can
+// save it to a file and load it on another device.
 // Each kid gets a profile with their own stars, streaks, topic stats, history and settings.
 
 const KEY = 'math-buddy.v2';
@@ -67,7 +68,7 @@ export const store = {
     const used = new Set(root.profiles.map((p) => p.color));
     let color = 0;
     while (used.has(color) && color < COLORS - 1) color++;
-    const p = { id: `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: n, color, data: root.pending || fresh() };
+    const p = { id: newId(), name: n, color, data: root.pending || fresh() };
     delete root.pending;
     root.profiles.push(p);
     root.current = p.id;
@@ -125,4 +126,96 @@ export const store = {
     p.data = { ...fresh(), settings: p.data.settings };
     save();
   },
+
+  // ---- moving progress between devices ----
+  // A backup holds every kid on this device, so one file moves the whole family.
+  exportBackup(appVersion) {
+    return {
+      app: BACKUP_APP,
+      format: BACKUP_FORMAT,
+      appVersion,
+      savedAt: new Date().toISOString(),
+      profiles: root.profiles.map(({ name, color, data: d }) => ({ name, color, data: d })),
+    };
+  },
+  // What loading a backup would do: which kids are new and whose progress gets replaced.
+  previewBackup(backup) {
+    return backup.profiles.map((p) => {
+      const here = findByName(p.name);
+      return { name: p.name, stars: p.data.stars, replaces: here ? { name: here.name, stars: here.data.stars } : null };
+    });
+  },
+  // Kids in the file replace the same-named kid here (or are added). Other kids here stay.
+  loadBackup(backup) {
+    let added = 0, replaced = 0;
+    for (const p of backup.profiles) {
+      const here = findByName(p.name);
+      if (here) {
+        here.data = withDefaults(p.data);
+        replaced++;
+      } else {
+        const used = new Set(root.profiles.map((x) => x.color));
+        const color = used.has(p.color) ? [...Array(COLORS).keys()].find((c) => !used.has(c)) ?? p.color : p.color;
+        root.profiles.push({ id: newId(), name: p.name, color, data: withDefaults(p.data) });
+        added++;
+      }
+    }
+    delete root.pending;
+    if (!current() && root.profiles[0]) root.current = root.profiles[0].id;
+    save();
+    return { added, replaced };
+  },
 };
+
+const BACKUP_APP = 'math-buddy';
+const BACKUP_FORMAT = 1;
+
+function newId() {
+  return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function findByName(name) {
+  return root.profiles.find((p) => p.name.toLowerCase() === String(name).toLowerCase()) || null;
+}
+
+const count = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : 0);
+
+// Checks a backup file and keeps only what the app understands, so a damaged or
+// hand-edited file can't break the app.
+export function readBackup(text) {
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error("That file isn't a Math Buddy progress file.");
+  }
+  if (!raw || raw.app !== BACKUP_APP || !Array.isArray(raw.profiles)) throw new Error("That file isn't a Math Buddy progress file.");
+  if (Number(raw.format) > BACKUP_FORMAT) throw new Error('That file was saved by a newer version of Math Buddy. Update the app, then try again.');
+  const seen = new Set();
+  const profiles = [];
+  for (const p of raw.profiles.slice(0, 20)) {
+    const name = cleanName((p && p.name) || '');
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    const d = (p && p.data) || {};
+    const topics = {};
+    for (const [k, t] of Object.entries(d.topics || {})) {
+      if (/^[a-z]{1,20}$/.test(k) && t) topics[k] = { tries: count(t.tries), firstTry: count(t.firstTry), right: count(t.right) };
+    }
+    profiles.push({
+      name,
+      color: Math.min(COLORS - 1, count(p.color)),
+      data: withDefaults({
+        stars: count(d.stars),
+        streak: count(d.streak),
+        bestStreak: count(d.bestStreak),
+        solved: count(d.solved),
+        topics,
+        history: (Array.isArray(d.history) ? d.history : []).filter((h) => typeof h === 'string').map((h) => h.slice(0, 400)).slice(0, 15),
+        settings: { hintFirst: !d.settings || d.settings.hintFirst !== false },
+      }),
+    });
+  }
+  if (!profiles.length) throw new Error("That file doesn't have any kids' progress in it.");
+  return { savedAt: raw.savedAt ? new Date(raw.savedAt) : null, appVersion: raw.appVersion || '', profiles };
+}
