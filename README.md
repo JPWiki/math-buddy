@@ -61,6 +61,44 @@ and *of* work too.
 
 Not supported yet: squared equations, geometry, and word problems that need more than a couple of steps.
 
+## Family sync
+
+Sign in once on each device with a family email and password, and every kid's progress
+stays the same on all of them. It uses Firebase (Google's free app database):
+
+- Counts (stars, problems right, topic tries) are sent as "add N", so practice on two
+  devices at the same time adds up. Names, colors and settings are "latest change wins".
+- Each device keeps its own copy and works offline; changes sync when it's back online.
+- When a device with existing progress joins, it asks whether to use the family account's
+  progress or add this device's on top (so a kid copied over by file isn't counted twice).
+- Each family can only read its own data (Firestore rules below).
+
+### Setting it up (once, for the app)
+
+1. In the [Firebase console](https://console.firebase.google.com) create a project.
+2. **Authentication → Sign-in method → Email/Password → Enable.** Under **Settings →
+   Authorized domains**, add the site's domain (for example `jpwiki.github.io`).
+3. **Firestore Database → Create database** (production mode), then set **Rules** to:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /families/{uid}/{document=**} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
+   ```
+4. **Project settings → Your apps → Web app**, then copy the `firebaseConfig` values into
+   `js/config.js` as `FIREBASE_CONFIG`. They're public identifiers, not secrets.
+
+With `FIREBASE_CONFIG = null` the app works exactly as before, with no sync option.
+
+`js/vendor/firebase.js` is the Firebase JS SDK 10.14.1 (app, auth, firestore) bundled with
+esbuild, so the app doesn't depend on a CDN. To rebuild it, bundle an entry file that
+re-exports the functions `js/cloud-firebase.js` uses:
+`npx esbuild entry.js --bundle --format=esm --minify --outfile=js/vendor/firebase.js`.
+
 ## Run it
 
 It's plain HTML, CSS and JavaScript with no build step. Serve the folder with any static server:
@@ -101,6 +139,10 @@ js/written.js         long multiplication and long division laid out like on pap
 js/words.js           reads word problems (question, numbers, clue words)
 js/practice.js        practice problem generators
 js/store.js           kid profiles and progress, saved in localStorage
+js/sync.js            family sync: merges progress across devices (adds counts, never overwrites)
+js/cloud-firebase.js  family sync through Firebase sign-in and Firestore
+js/config.js          Firebase settings for family sync (null = sync off)
+js/vendor/firebase.js bundled Firebase SDK
 js/ocr.js             optional photo reading (loads Tesseract.js on first use)
 js/version.js         app version shown in the footer and saved in progress files
 sw.js                 offline cache (change VERSION to match js/version.js on every release)

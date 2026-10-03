@@ -3,6 +3,7 @@ import { MathError } from './rational.js';
 import { TOPICS, LEVELS, makeRound } from './practice.js';
 import { store, readBackup } from './store.js';
 import { APP_VERSION } from './version.js';
+import { FIREBASE_CONFIG } from './config.js';
 import { esc } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -462,9 +463,10 @@ function renderProgress() {
     </div>` : ''}
     ${kid ? `<div class="card">
       <h2>For grown-ups</h2>
-      <p class="muted" style="margin:6px 0 12px">Progress is saved on this device. Nothing is uploaded.</p>
+      <p class="muted" style="margin:6px 0 12px">${store.syncInfo() ? 'Progress is saved on this device and synced to your family account.' : 'Progress is saved on this device. Nothing is uploaded.'}</p>
       ${manageHTML(kid)}
     </div>` : ''}
+    ${FIREBASE_CONFIG ? '<div class="card" id="sync-card"></div>' : ''}
     <div class="card">
       <h2>Move progress to another device</h2>
       <p class="muted" style="margin:6px 0 12px">Save every kid's progress to a file. Choose <b>Drive</b> to keep it in Google Drive. On the other device, open Math Buddy and tap <b>Load progress</b>.</p>
@@ -475,6 +477,7 @@ function renderProgress() {
       <div id="progress-backup">${backupPreviewHTML('progress')}</div>
     </div>`;
 
+  drawSync();
   const body = $('#progress-body');
   body.onclick = (e) => {
     const b = e.target.closest('button');
@@ -616,6 +619,180 @@ function setupBackup() {
   $('#app-version').textContent = APP_VERSION;
 }
 
+// ---------- family sync ----------
+// Sign in once per device with the family email and password; progress then stays the
+// same on every device. The sync code only loads when family sync is set up and used.
+
+let sync = null;
+let syncStarting = null;
+let syncStatus = null;
+let syncConflicts = null; // [{ name, here, family }] while a joining device decides
+let syncResolve = null;
+const syncForm = { email: '', password: '', error: '', info: '', busy: false, confirmOff: false };
+
+function startSync() {
+  if (!FIREBASE_CONFIG) return Promise.resolve(null);
+  if (sync) return Promise.resolve(sync);
+  syncStarting ||= (async () => {
+    const [{ createSync }, { createFirebaseCloud }] = await Promise.all([import('./sync.js'), import('./cloud-firebase.js')]);
+    const cloud = await createFirebaseCloud(FIREBASE_CONFIG);
+    sync = createSync({
+      store,
+      cloud,
+      onChange: onSyncedChange,
+      onStatus: (st) => { syncStatus = st; drawSync(); },
+      askConflicts: (list) => new Promise((resolve) => {
+        syncConflicts = list;
+        syncResolve = resolve;
+        if (location.hash !== '#progress') location.hash = '#progress';
+        drawSync();
+      }),
+    });
+    return sync;
+  })().catch((err) => {
+    syncStarting = null;
+    syncStatus = { state: 'error', error: "Couldn't start family sync. Check the internet connection and try again." };
+    console.error(err);
+    drawSync();
+    return null;
+  });
+  return syncStarting;
+}
+
+// Something arrived from another device: refresh what's on screen without interrupting.
+function onSyncedChange() {
+  const kid = store.current();
+  // The first-run "Who's using Math Buddy?" sheet closes once the family's kids arrive.
+  if (kid && !$('#who-sheet').hidden && $('#who-close').hidden) $('#who-sheet').hidden = true;
+  updateWho();
+  updateStars();
+  $('#hint-first').checked = store.setting('hintFirst');
+  if (!$('#view-progress').hidden && !document.activeElement?.closest?.('#sync-card, #rename-form')) renderProgress();
+  if (!$('#view-practice').hidden && !round) renderTopics();
+  if (!kid) openWho();
+}
+
+const SYNC_STATE_TEXT = {
+  joining: 'Connecting\u2026',
+  synced: '\u2714 All changes saved',
+  saving: 'Saving\u2026',
+  offline: 'Offline. Changes are saved on this device and will sync when it\'s back online.',
+};
+
+function syncCardHTML() {
+  const st = syncStatus || { state: store.syncInfo() ? 'joining' : 'signed-out', email: (store.syncInfo() || {}).email };
+  const note = (t, cls) => (t ? `<p class="${cls}" style="margin:10px 0 0">${esc(t)}</p>` : '');
+  if (syncConflicts) {
+    return `<h2>Family sync</h2>
+      <p class="muted" style="margin:6px 0 10px">These kids are on this device and in the family account. What should happen to this device's progress?</p>
+      <form id="sync-conflicts" class="conflicts">
+        ${syncConflicts.map((c, i) => `<fieldset>
+          <legend><b>${esc(c.name)}</b>: \u2605 ${c.here} here, \u2605 ${c.family} in the family account</legend>
+          <label><input type="radio" name="c${i}" value="cloud" checked> Use the family account's progress <span class="muted">(recommended if you copied it here with a file)</span></label>
+          <label><input type="radio" name="c${i}" value="add"> Add this device's progress too <span class="muted">(\u2605 ${c.here + c.family})</span></label>
+        </fieldset>`).join('')}
+        <button class="primary small" type="submit">Continue</button>
+      </form>`;
+  }
+  if (st.state !== 'signed-out' && (st.email || store.syncInfo())) {
+    const email = st.email || (store.syncInfo() || {}).email || '';
+    return `<h2>Family sync</h2>
+      <p style="margin:6px 0 0">On for <b>${esc(email)}</b>. Kids' progress stays the same on every device signed in to this account.</p>
+      ${st.state === 'error' ? note(st.error, 'error') : `<p class="sync-state ${st.state}">${esc(SYNC_STATE_TEXT[st.state] || '')}</p>`}
+      ${syncForm.confirmOff
+        ? `<p style="margin:12px 0 8px">Turn off family sync on this device? Progress stays here, but stops syncing.</p>
+           <div class="row"><button type="button" class="ghost small danger" data-s="off-yes">Turn off</button><button type="button" class="ghost small" data-s="off-no">Cancel</button></div>`
+        : '<div class="row" style="margin-top:12px"><button type="button" class="ghost small" data-s="off">Turn off on this device</button></div>'}`;
+  }
+  const paused = store.syncInfo();
+  return `<h2>Family sync</h2>
+    ${paused ? `<p class="tip" style="margin:6px 0 12px">This device was signed out of <b>${esc(paused.email || 'the family account')}</b>. Sign in again to keep syncing. Progress made in the meantime is kept and will be sent.</p>` : ''}
+    <p class="muted" style="margin:6px 0 12px">Sign in once on each device with your family email and password. Each kid's progress then stays the same on all of them, even after practicing offline.</p>
+    <form id="sync-form" class="sync-form" autocomplete="on">
+      <label for="sync-email" class="label">Family email</label>
+      <input id="sync-email" type="email" autocomplete="username" value="${esc(syncForm.email || (paused && paused.email) || '')}" ${syncForm.busy ? 'disabled' : ''}>
+      <label for="sync-password" class="label">Password</label>
+      <input id="sync-password" type="password" autocomplete="current-password" minlength="6" ${syncForm.busy ? 'disabled' : ''}>
+      <div class="row">
+        <button type="submit" class="primary small" data-s="signin" ${syncForm.busy ? 'disabled' : ''}>${syncForm.busy ? 'Please wait\u2026' : 'Sign in'}</button>
+        <button type="button" class="ghost small" data-s="signup" ${syncForm.busy ? 'disabled' : ''}>Create family account</button>
+        <button type="button" class="linkish" data-s="reset" ${syncForm.busy ? 'disabled' : ''}>Forgot password?</button>
+      </div>
+      <p class="muted small-note">New here? Type an email and a password (at least 6 characters), then tap <b>Create family account</b>. Use the same email and password on your other devices.</p>
+    </form>
+    ${note(syncForm.error || (st.state === 'error' ? st.error : ''), 'error')}${note(syncForm.info, 'tip')}`;
+}
+
+function drawSync() {
+  const card = $('#sync-card');
+  if (!card) return;
+  card.innerHTML = syncCardHTML();
+  const form = $('#sync-form');
+  if (form) {
+    $('#sync-email').oninput = (e) => { syncForm.email = e.target.value; };
+    form.onsubmit = (e) => { e.preventDefault(); syncAction('signin'); };
+  }
+  const cf = $('#sync-conflicts');
+  if (cf) {
+    cf.onsubmit = (e) => {
+      e.preventDefault();
+      const choices = {};
+      syncConflicts.forEach((c, i) => { choices[c.name] = cf.querySelector(`input[name="c${i}"]:checked`).value; });
+      const resolve = syncResolve;
+      syncConflicts = null;
+      syncResolve = null;
+      drawSync();
+      resolve(choices);
+    };
+  }
+  card.onclick = (e) => {
+    const b = e.target.closest('button[data-s]');
+    if (b && b.type !== 'submit') syncAction(b.dataset.s);
+  };
+}
+
+async function syncAction(action) {
+  syncForm.error = '';
+  syncForm.info = '';
+  if (action === 'off') { syncForm.confirmOff = true; return drawSync(); }
+  if (action === 'off-no') { syncForm.confirmOff = false; return drawSync(); }
+  if (action === 'off-yes') {
+    syncForm.confirmOff = false;
+    const s = await startSync();
+    if (s) await s.signOut();
+    else store.setSyncInfo(null);
+    syncStatus = { state: 'signed-out' };
+    toast('Family sync is off on this device');
+    return drawSync();
+  }
+  const email = ($('#sync-email') && $('#sync-email').value.trim()) || syncForm.email.trim();
+  const password = ($('#sync-password') && $('#sync-password').value) || '';
+  syncForm.email = email;
+  if (!email) { syncForm.error = 'Type the family email first.'; return drawSync(); }
+  if (action !== 'reset' && !password) { syncForm.error = 'Type the password.'; return drawSync(); }
+  syncForm.busy = true;
+  drawSync();
+  try {
+    const s = await startSync();
+    if (!s) throw new Error("Couldn't start family sync. Check the internet connection and try again.");
+    const { friendlyAuthError } = await import('./sync.js');
+    try {
+      if (action === 'signin') await s.signIn(email, password);
+      if (action === 'signup') await s.signUp(email, password);
+      if (action === 'reset') {
+        await s.resetPassword(email);
+        syncForm.info = `If ${email} has a family account, a link to set a new password is on its way. Check the inbox (and spam).`;
+      }
+    } catch (err) {
+      syncForm.error = friendlyAuthError(err);
+    }
+  } catch (err) {
+    syncForm.error = err.message;
+  }
+  syncForm.busy = false;
+  drawSync();
+}
+
 // ---------- profiles ----------
 
 function kidButton(p, isCurrent) {
@@ -651,6 +828,7 @@ function openWho() {
   $('#who-error').hidden = true;
   $('#kid-name').value = '';
   $('#who-close').hidden = !kid;
+  $('#who-sync').hidden = !FIREBASE_CONFIG || !!store.syncInfo();
   if (backupWhere === 'who') { pendingBackup = null; backupNote = null; }
   $('#who-backup').innerHTML = '';
   $('#who-sheet').hidden = false;
@@ -680,13 +858,22 @@ function switchKid(id) {
   toast(`Hi, ${store.current().name}!`);
 }
 
+let whoReady = false;
+
 function setupWho() {
+  whoReady = true;
   $('#who').onclick = openWho;
   $('#who-close').onclick = closeWho;
   $('#who-sheet').onclick = (e) => {
     if (e.target === e.currentTarget) return closeWho();
     const bb = e.target.closest('button[data-b]');
     if (bb) return handleBackup(bb.dataset.b, 'who');
+    if (e.target.closest('#who-sync-btn')) {
+      $('#who-sheet').hidden = true;
+      location.hash = '#progress';
+      setTimeout(() => $('#sync-email') && $('#sync-email').focus(), 50);
+      return;
+    }
     const b = e.target.closest('button[data-kid]');
     if (b) switchKid(b.dataset.kid);
   };
@@ -721,6 +908,7 @@ function route({ keepScroll = false } = {}) {
     else a.removeAttribute('aria-current');
   });
   if (valid === 'progress') renderProgress();
+  if (valid !== 'progress' && !store.current() && $('#who-sheet').hidden && document.readyState !== 'loading' && whoReady) openWho();
   if (valid === 'practice' && !round) renderTopics();
   if (!keepScroll) window.scrollTo(0, 0);
 }
@@ -752,6 +940,8 @@ window.addEventListener('hashchange', () => route());
 route();
 setupBackup();
 setupWho();
+// A device that already uses family sync reconnects by itself.
+if (FIREBASE_CONFIG && store.syncInfo()) startSync();
 
 // Open with a worked example so the first screen shows what the app does.
 problemInput.value = EXAMPLES[0];

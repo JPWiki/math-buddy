@@ -1,11 +1,15 @@
 // Keeps Math Buddy working offline. Change VERSION (to match js/version.js)
 // whenever app files change, so installed copies fetch the new files.
-const VERSION = 'math-buddy-1.4.1';
+const VERSION = 'math-buddy-1.5.0';
+// The Firebase code (js/vendor/firebase.js) isn't listed: it's cached the first time a
+// device turns on family sync, so other devices don't download it.
 const SHELL = [
   './',
   'index.html',
   'css/app.css',
   'js/app.js',
+  'js/cloud-firebase.js',
+  'js/config.js',
   'js/explain.js',
   'js/format.js',
   'js/ocr.js',
@@ -14,6 +18,7 @@ const SHELL = [
   'js/rational.js',
   'js/solver.js',
   'js/store.js',
+  'js/sync.js',
   'js/version.js',
   'js/words.js',
   'js/written.js',

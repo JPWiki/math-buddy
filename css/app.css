@@ -175,6 +175,21 @@ main { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 20
 .add-row input:focus, .rename-row input:focus { border-color: var(--accent); outline: none; }
 .rename-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* family sync */
+.sync-form { display: flex; flex-direction: column; gap: 6px; }
+.sync-form input { font-size: 1.05rem; padding: 10px 14px; border: 2px solid var(--line); border-radius: 12px; background: var(--paper); min-width: 0; }
+.sync-form input:focus { border-color: var(--accent); outline: none; }
+.sync-form .row { margin-top: 6px; align-items: center; }
+.small-note { font-size: 0.85rem; margin: 4px 0 0; }
+.linkish { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 6px 4px; text-decoration: underline; }
+.sync-state { margin: 10px 0 0; font-weight: 600; color: var(--ink-soft); }
+.sync-state.synced { color: var(--good); }
+.conflicts { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.conflicts fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0; display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.conflicts legend { padding: 0 4px; }
+.conflicts label { display: flex; gap: 8px; align-items: flex-start; }
+.conflicts input { margin-top: 4px; accent-color: var(--accent); }
+
 /* moving progress */
 .load-preview { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); display: flex; flex-direction: column; gap: 8px; }
 .load-preview p { margin: 0; }
