@@ -526,7 +526,10 @@ function familyHTML() {
       }).join('')}</tr>`).join('')}</tbody>
     </table></div>`;
 
-  return `<div class="fam-grid">${cards}</div>
+  const lonely = kids.length < 2
+    ? `<p class="tip">Only ${esc(kids[0].name)} is on this device. To compare kids, add another kid (tap the name at the top)${FIREBASE_CONFIG ? ', or turn on family sync so every kid shows up on every device' : ''}.</p>`
+    : '';
+  return `${lonely}<div class="fam-grid">${cards}</div>
     <div class="card">
       <h2>Topics side by side</h2>
       <p class="muted">Percent right on the first try. The small number is how many problems they've done.
@@ -543,10 +546,11 @@ function familyHTML() {
 function renderProgress() {
   const s = store.get();
   const kid = store.current();
-  const many = store.profiles().length > 1;
-  if (!many) progressView = 'kid';
-  $('#progress-switch').hidden = !many;
-  $('#progress-switch').innerHTML = many ? `
+  // Always offer the family view, so grown-ups can find it even before a second kid is added.
+  const hasKids = store.profiles().length > 0;
+  if (!hasKids) progressView = 'kid';
+  $('#progress-switch').hidden = !hasKids;
+  $('#progress-switch').innerHTML = hasKids ? `
     <button type="button" role="tab" aria-selected="${progressView === 'kid'}" data-pv="kid">${esc(kid ? kid.name : 'Kid')}</button>
     <button type="button" role="tab" aria-selected="${progressView === 'family'}" data-pv="family">Family</button>` : '';
   $('#progress-switch').onclick = (e) => {
