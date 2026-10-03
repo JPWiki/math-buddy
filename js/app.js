@@ -38,7 +38,7 @@ function friendlyError(e) {
 }
 
 function stepHTML(step, i) {
-  const lines = step.lines.map((l) => (l.startsWith('<div') ? l : `<p>${l}</p>`)).join('');
+  const lines = step.lines.map((l) => (l.startsWith('<div') ? l : l.includes('<ul') ? `<div>${l}</div>` : `<p>${l}</p>`)).join('');
   return `<li class="step">
     <div class="step-head"><span class="step-n">${i + 1}</span><h3>${esc(step.title)}</h3>${step.reason ? `<span class="reason">${esc(step.reason)}</span>` : ''}</div>
     <div class="expr">${step.beforeHTML}</div>

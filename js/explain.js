@@ -3,6 +3,7 @@
 
 import { Q, MathError, gcd, lcm } from './rational.js';
 import { group, fracHTML, numHTML, numNodeHTML, MINUS } from './format.js';
+import { longMultiply, longDivide } from './written.js';
 
 const PLACES = ['ones', 'tens', 'hundreds', 'thousands', 'ten-thousands', 'hundred-thousands', 'millions', 'ten-millions', 'hundred-millions'];
 const DEC_PLACES = ['tenths', 'hundredths', 'thousandths', 'ten-thousandths', 'hundred-thousandths', 'millionths'];
@@ -184,12 +185,6 @@ function isPow10(x) {
   return x >= 10 && /^10*$/.test(String(x));
 }
 
-// Splits 236 into [200, 30, 6]
-function placeParts(x) {
-  const s = String(x);
-  return s.split('').map((d, i) => Number(d) * 10 ** (s.length - 1 - i)).filter((v) => v);
-}
-
 function mulNonNeg(x, y) {
   const p = x * y;
   if (x === 0 || y === 0) return { p, lines: [`Anything times 0 is 0: ${m(`${n(x)} ${T} ${n(y)} = 0`)}.`], hint: 'What happens when you multiply by 0?' };
@@ -213,31 +208,14 @@ function mulNonNeg(x, y) {
     const a = x / 10 ** zx, b = y / 10 ** zy;
     return { p, lines: [`Ignore the zeros first: ${m(`${a} ${T} ${b} = ${a * b}`)}.`, `Then put back the ${zx + zy} zero${zx + zy > 1 ? 's' : ''}: ${m(`${n(x)} ${T} ${n(y)} = ${n(p)}`)}.`], hint: 'Multiply without the zeros, then add them back on.' };
   }
-  // Keep the smaller number whole and break the bigger one apart.
+  const r = longMultiply(x, y);
   const [big, small] = x >= y ? [x, y] : [y, x];
-  if (small <= 12) {
-    const parts = placeParts(big);
-    const prods = parts.map((pt) => pt * small);
-    return {
-      p,
-      lines: [
-        `Break ${n(big)} into place-value parts: ${m(parts.map(n).join(' + '))}.`,
-        `Multiply each part by ${small}: ${parts.map((pt, i) => m(`${n(pt)} ${T} ${small} = ${n(prods[i])}`)).join(', ')}.`,
-        `Add them up: ${m(`${prods.map(n).join(' + ')} = ${n(p)}`)}.`,
-      ],
-      hint: `Break ${n(big)} into ${parts.map(n).join(' + ')} and multiply each part by ${small}.`,
-    };
-  }
-  const parts = placeParts(small);
-  const prods = parts.map((pt) => pt * big);
   return {
     p,
-    lines: [
-      `Split ${n(small)} into ${m(parts.map(n).join(' + '))} and multiply ${n(big)} by each part (long multiplication).`,
-      ...parts.map((pt, i) => m(`${n(big)} ${T} ${n(pt)} = ${n(prods[i])}`)),
-      `Add the partial products: ${m(`${prods.map(n).join(' + ')} = ${n(p)}`)}.`,
-    ],
-    hint: `Split ${n(small)} into ${parts.map(n).join(' + ')}. Multiply ${n(big)} by each part, then add.`,
+    lines: [r.html, ...r.lines],
+    hint: String(small).length === 1
+      ? `Write ${n(big)} on top and ${small} below. Multiply ${small} by each digit, starting with the ones, and carry when you get 10 or more.`
+      : `Use long multiplication: multiply ${n(big)} by each digit of ${n(small)} on its own row, then add the rows.`,
   };
 }
 
@@ -251,35 +229,6 @@ export function mulInts(x, y) {
     if (p !== r.p) lines.push(`So the answer is ${m(n(p))}.`);
   }
   return { v: p, lines, hint: r.hint };
-}
-
-function longDivision(x, y) {
-  const digits = String(x).split('').map(Number);
-  const lines = [];
-  let cur = 0;
-  let started = false;
-  let qStr = '';
-  for (const dg of digits) {
-    cur = cur * 10 + dg;
-    const q = Math.floor(cur / y);
-    if (!started && q === 0) {
-      if (qStr === '' && cur < y && cur !== x) {
-        lines.push(`${y} doesn't go into ${cur}, so look at one more digit.`);
-      }
-      continue;
-    }
-    started = true;
-    qStr += q;
-    const r = cur - q * y;
-    if (q === 0) {
-      lines.push(`Bring down the next digit to make ${n(cur)}. ${y} doesn't go into ${n(cur)}, so write 0.`);
-      continue;
-    }
-    lines.push(`${m(`${n(cur)} ${D} ${y} = ${q}`)}, because ${m(`${q} ${T} ${y} = ${n(q * y)}`)}. ${r ? `Left over: ${m(`${n(cur)} ${MINUS} ${n(q * y)} = ${r}`)}.` : 'Nothing left over.'}`);
-    cur = r;
-  }
-  if (lines.length > 8) return [lines[0], lines[1], `<span class="note">… keep going the same way, one digit at a time …</span>`, lines[lines.length - 1]];
-  return lines;
 }
 
 export function divInts(x, y) {
@@ -312,8 +261,9 @@ export function divInts(x, y) {
     if (g > 1) lines.push(`Simplify by dividing top and bottom by ${g}: ${m(`${fracHTML(ax, ay)} = ${fracHTML(ax / g, ay / g)}`)}.`);
     hint = 'The first number is smaller, so the answer is a fraction less than 1.';
   } else {
-    lines.push(`Use long division, one digit at a time from the left:`);
-    lines.push(...longDivision(ax, ay));
+    const ld = longDivide(String(ax), ay);
+    lines.push(`Use long division. Write ${n(ay)} outside the bracket and ${n(ax)} inside, then work from the left, one digit at a time:`);
+    lines.push(ld.html, ...ld.lines);
     hint = `Use long division: how many ${n(ay)}s fit into the first digits of ${n(ax)}?`;
   }
   if (rem && ax > ay) {
@@ -477,15 +427,17 @@ export function decDiv(A, B) {
     b = b.mul(Q.int(10 ** pb));
     lines.push(`Make the number you're dividing by a whole number. Move both decimal points ${pb} place${pb > 1 ? 's' : ''} to the right: ${m(`${numHTML(A.q, 'dec')} ${D} ${numHTML(B.q, 'dec')}`)} becomes ${m(`${numHTML(a, 'dec')} ${D} ${n(b.n)}`)}.`);
   }
-  if (a.isInt()) {
-    const r = divInts(a.n, b.n);
-    lines.push(...r.lines.filter((l) => !l.includes(' R ') && !l.startsWith('The remainder')));
-    if (!q.isInt()) lines.push(`So the answer is ${m(kind === 'dec' ? numHTML(q, 'dec') : `${numHTML(q, 'frac')} ≈ ${q.toDecimal()}`)}.`);
+  const bAbs = Math.abs(b.n);
+  if (q.sign() < 0) lines.push('One number is negative, so the answer is negative. Divide without the signs, then put a minus in front.');
+  const ld = longDivide(a.abs().toDecimal(8), bAbs, { extend: 4 });
+  lines.push(`Use long division with ${n(bAbs)} outside the bracket. The decimal point in the answer goes right above the decimal point inside.${ld.extraZeros ? ' You can add zeros after the decimal point to keep going.' : ''}`);
+  lines.push(ld.html, ...ld.lines);
+  if (ld.finished) {
+    lines.push(`So ${m(`${numHTML(A.q, 'dec')} ${D} ${numHTML(B.q, 'dec')} = ${numHTML(q, 'dec')}`)}.`);
   } else {
-    lines.push(`Divide like whole numbers and keep the decimal point in the same place: ${m(`${numHTML(a, 'dec')} ${D} ${n(b.n)} = ${kind === 'dec' ? numHTML(q, 'dec') : `${numHTML(q, 'frac')} ≈ ${q.toDecimal()}`}`)}.`);
-    lines.push(`<span class="note">Check: ${numHTML(q, kind)} ${T} ${n(b.n)} = ${numHTML(a, 'dec')}</span>`);
+    lines.push(`The digits keep going forever, so stop here: the answer is about ${m(q.toDecimal())}, or exactly ${m(numHTML(q, 'frac'))}.`);
   }
-  return { q, kind, lines, hint: pb ? 'Move the decimal points so you divide by a whole number.' : 'Divide like whole numbers and keep the decimal point in place.' };
+  return { q, kind, lines, hint: pb ? 'Move both decimal points so you divide by a whole number, then use long division.' : 'Use long division. The decimal point in the answer goes right above the one inside the bracket.' };
 }
 
 // ---------- powers and percents ----------

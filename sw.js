@@ -1,5 +1,5 @@
 // Keeps Math Buddy working offline. Bump VERSION when app files change.
-const VERSION = 'math-buddy-v2';
+const VERSION = 'math-buddy-v3';
 const SHELL = [
   './',
   'index.html',
@@ -13,6 +13,7 @@ const SHELL = [
   'js/rational.js',
   'js/solver.js',
   'js/store.js',
+  'js/written.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-192.png',
