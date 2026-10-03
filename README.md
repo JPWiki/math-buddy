@@ -14,6 +14,9 @@ Android SDK, no account, no server.
   reveal one step at a time. The full answer only appears at the end.
 - **Practice**: 11 topics × 3 levels, 10 problems a round, an on-screen keypad, a hint after a
   wrong first try, and "Show me how" after a second miss. Stars and streaks.
+- **Profiles**: one per kid, each with their own stars, streaks, stats, recent problems and
+  settings. Tap the name in the header to switch kids or add one. Rename, reset or delete a
+  profile under Progress → For grown-ups.
 - **Progress**: stars, best streak, and first-try accuracy per topic, with a "worth more
   practice" tip. Saved on the device only.
 - **Camera (optional)**: snap a printed problem. The text goes into the box so the kid can check
@@ -75,7 +78,7 @@ js/parser.js          turns typed text into an expression tree
 js/explain.js         explains each single operation (carrying, long division, fractions…)
 js/solver.js          walks the tree in order of operations; solves linear equations
 js/practice.js        practice problem generators
-js/store.js           progress saved in localStorage
+js/store.js           kid profiles and progress, saved in localStorage
 js/ocr.js             optional photo reading (loads Tesseract.js on first use)
 sw.js                 offline cache (bump VERSION when files change)
 ```

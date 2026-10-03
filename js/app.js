@@ -381,12 +381,42 @@ function setupPractice() {
 
 // ---------- progress tab ----------
 
-let confirmReset = false;
+// Which grown-up action is open: null, 'rename', 'reset' or 'delete'.
+let manage = null;
+
+function manageHTML(kid) {
+  const name = esc(kid.name);
+  if (manage === 'rename') {
+    return `<form class="rename-row" id="rename-form" autocomplete="off">
+        <label for="rename-input" class="sr-only">New name</label>
+        <input id="rename-input" type="text" maxlength="20" value="${name}" autocapitalize="words" spellcheck="false">
+        <button type="submit" class="primary small">Save</button>
+        <button type="button" class="ghost small" data-m="cancel">Cancel</button>
+      </form>
+      <p id="manage-error" class="error" role="alert" hidden></p>`;
+  }
+  if (manage === 'reset') {
+    return `<p style="margin:0 0 10px">Erase ${name}'s stars, streaks and topic stats? The profile stays.</p>
+      <div class="row"><button type="button" class="ghost danger" data-m="reset-yes">Yes, erase progress</button><button type="button" class="ghost" data-m="cancel">Cancel</button></div>`;
+  }
+  if (manage === 'delete') {
+    return `<p style="margin:0 0 10px">Delete ${name}'s profile and all of their progress? This can't be undone.</p>
+      <div class="row"><button type="button" class="ghost danger" data-m="delete-yes">Yes, delete ${name}</button><button type="button" class="ghost" data-m="cancel">Cancel</button></div>`;
+  }
+  return `<div class="row">
+      <button type="button" class="ghost small" data-m="rename">Rename</button>
+      <button type="button" class="ghost small" data-m="reset">Reset progress</button>
+      <button type="button" class="ghost small danger" data-m="delete">Delete profile</button>
+    </div>`;
+}
 
 function renderProgress() {
   const s = store.get();
+  const kid = store.current();
+  $('#progress-h').textContent = kid ? `${kid.name}'s progress` : 'Progress';
   const rows = TOPICS.map((t) => ({ t, st: s.topics[t.id] })).filter((r) => r.st && r.st.tries);
   const weak = rows.filter((r) => r.st.tries >= 5).sort((a, b) => a.st.firstTry / a.st.tries - b.st.firstTry / b.st.tries)[0];
+  const others = store.profiles().filter((p) => !kid || p.id !== kid.id);
   $('#progress-body').innerHTML = `
     <div class="tiles">
       <div class="tile"><b>${s.stars}</b><span>stars</span></div>
@@ -400,7 +430,7 @@ function renderProgress() {
       <div class="stat-list" style="margin-top:12px">
         ${rows.length ? rows.map(({ t, st }) => {
           const pct = Math.round((100 * st.firstTry) / st.tries);
-          return `<div class="stat"><span>${esc(t.name)}</span><small>${pct}% · ${st.firstTry}/${st.tries}</small><span class="meter"><i style="width:${pct}%"></i></span></div>`;
+          return `<div class="stat"><span>${esc(t.name)}</span><small>${pct}% \u00b7 ${st.firstTry}/${st.tries}</small><span class="meter"><i style="width:${pct}%"></i></span></div>`;
         }).join('') : '<p class="muted">No practice yet. Pick a topic in Practice to start.</p>'}
       </div>
     </div>
@@ -410,27 +440,148 @@ function renderProgress() {
         ${s.history.length ? s.history.map((h) => `<button type="button" class="chip-btn" data-h="${esc(h)}">${esc(h)}</button>`).join('') : '<p class="muted">Problems you solve will show up here.</p>'}
       </div>
     </div>
-    <div class="card">
+    ${others.length ? `<div class="card">
+      <h2>Other kids</h2>
+      <div class="who-list" style="margin-top:10px">${others.map((p) => kidButton(p, false)).join('')}</div>
+    </div>` : ''}
+    ${kid ? `<div class="card">
       <h2>For grown-ups</h2>
       <p class="muted" style="margin:6px 0 12px">Progress is saved on this device only. Nothing is uploaded.</p>
-      ${confirmReset
-        ? '<div class="row"><button type="button" class="ghost danger" id="reset-yes">Yes, erase progress</button><button type="button" class="ghost" id="reset-no">Cancel</button></div>'
-        : '<button type="button" class="ghost" id="reset">Reset progress</button>'}
-    </div>`;
+      ${manageHTML(kid)}
+    </div>` : ''}`;
+
   const body = $('#progress-body');
   body.onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.h) { problemInput.value = b.dataset.h; location.hash = '#solve'; runSolve(b.dataset.h); }
-    if (b.id === 'reset') { confirmReset = true; renderProgress(); }
-    if (b.id === 'reset-no') { confirmReset = false; renderProgress(); }
-    if (b.id === 'reset-yes') { store.reset(); confirmReset = false; updateStars(); renderProgress(); toast('Progress erased'); }
+    if (b.dataset.h) { problemInput.value = b.dataset.h; location.hash = '#solve'; runSolve(b.dataset.h); return; }
+    if (b.dataset.kid) { switchKid(b.dataset.kid); return; }
+    const m = b.dataset.m;
+    if (!m) return;
+    if (m === 'cancel') manage = null;
+    else if (m === 'reset-yes') { store.reset(); manage = null; updateStars(); toast('Progress erased'); }
+    else if (m === 'delete-yes') {
+      const gone = kid.name;
+      store.deleteProfile(kid.id);
+      manage = null;
+      onKidChanged();
+      toast(`Deleted ${gone}`);
+      if (!store.current()) openWho();
+      return;
+    } else manage = m;
+    renderProgress();
+    if (manage === 'rename') { const i = $('#rename-input'); i.focus(); i.select(); }
   };
+  const rename = $('#rename-form');
+  if (rename) {
+    rename.onsubmit = (e) => {
+      e.preventDefault();
+      try {
+        store.renameProfile(kid.id, $('#rename-input').value);
+        manage = null;
+        updateWho();
+        renderProgress();
+      } catch (err) {
+        $('#manage-error').textContent = err.message;
+        $('#manage-error').hidden = false;
+      }
+    };
+  }
+}
+
+// ---------- profiles ----------
+
+function kidButton(p, isCurrent) {
+  const initial = esc((p.name.match(/\p{L}|\p{N}/u) || [p.name[0] || '?'])[0].toUpperCase());
+  return `<button type="button" class="kid" data-kid="${p.id}" aria-current="${isCurrent}">
+    <span class="avatar big c${p.color}" aria-hidden="true">${initial}</span>
+    <b>${esc(p.name)}</b>
+    <small>\u2605 ${p.stars}</small>
+  </button>`;
+}
+
+function updateWho() {
+  const kid = store.current();
+  $('#who').hidden = !kid;
+  if (!kid) return;
+  const av = $('#who-avatar');
+  av.className = `avatar c${kid.color}`;
+  av.textContent = (kid.name.match(/\p{L}|\p{N}/u) || [kid.name[0] || '?'])[0].toUpperCase();
+  $('#who-name').textContent = kid.name;
+  $('#who').setAttribute('aria-label', `${kid.name}. Switch kid`);
+}
+
+function openWho() {
+  const kid = store.current();
+  const list = store.profiles();
+  $('#who-h').textContent = list.length ? "Who's practicing?" : "Who's using Math Buddy?";
+  const sub = [];
+  if (!list.length) sub.push('Add a name for each kid. Everyone gets their own stars and progress.');
+  if (store.hasOldProgress()) sub.push('The progress already on this phone will go to the first name you add.');
+  $('#who-sub').textContent = sub.join(' ');
+  $('#who-sub').hidden = !sub.length;
+  $('#who-list').innerHTML = list.map((p) => kidButton(p, !!kid && p.id === kid.id)).join('');
+  $('#who-error').hidden = true;
+  $('#kid-name').value = '';
+  $('#who-close').hidden = !kid;
+  $('#who-sheet').hidden = false;
+  if (!list.length) $('#kid-name').focus();
+}
+
+function closeWho() {
+  if (!store.current()) return;
+  $('#who-sheet').hidden = true;
+}
+
+// Everything on screen belongs to one kid, so redraw it all when the kid changes.
+function onKidChanged() {
+  manage = null;
+  updateWho();
+  updateStars();
+  $('#hint-first').checked = store.setting('hintFirst');
+  if (round) backToTopics();
+  if (problemInput.value.trim() && !$('#result').hidden) runSolve(problemInput.value, { remember: false });
+  route({ keepScroll: true });
+}
+
+function switchKid(id) {
+  store.switchTo(id);
+  $('#who-sheet').hidden = true;
+  onKidChanged();
+  toast(`Hi, ${store.current().name}!`);
+}
+
+function setupWho() {
+  $('#who').onclick = openWho;
+  $('#who-close').onclick = closeWho;
+  $('#who-sheet').onclick = (e) => {
+    if (e.target === e.currentTarget) return closeWho();
+    const b = e.target.closest('button[data-kid]');
+    if (b) switchKid(b.dataset.kid);
+  };
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#who-sheet').hidden) closeWho();
+  });
+  $('#add-kid').onsubmit = (e) => {
+    e.preventDefault();
+    try {
+      store.addProfile($('#kid-name').value);
+    } catch (err) {
+      $('#who-error').textContent = err.message;
+      $('#who-error').hidden = false;
+      return;
+    }
+    $('#who-sheet').hidden = true;
+    onKidChanged();
+    toast(`Hi, ${store.current().name}!`);
+  };
+  updateWho();
+  if (!store.current()) openWho();
 }
 
 // ---------- tabs, install, offline ----------
 
-function route() {
+function route({ keepScroll = false } = {}) {
   const tab = (location.hash || '#solve').slice(1);
   const valid = ['solve', 'practice', 'progress'].includes(tab) ? tab : 'solve';
   for (const v of ['solve', 'practice', 'progress']) $(`#view-${v}`).hidden = v !== valid;
@@ -440,7 +591,7 @@ function route() {
   });
   if (valid === 'progress') renderProgress();
   if (valid === 'practice' && !round) renderTopics();
-  window.scrollTo(0, 0);
+  if (!keepScroll) window.scrollTo(0, 0);
 }
 
 let installEvent = null;
@@ -466,8 +617,9 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 setupSolve();
 setupPractice();
 updateStars();
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', () => route());
 route();
+setupWho();
 
 // Open with a worked example so the first screen shows what the app does.
 problemInput.value = EXAMPLES[0];
