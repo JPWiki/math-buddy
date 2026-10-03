@@ -6,7 +6,7 @@ import { esc } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
 
-const EXAMPLES = ['3/4 + 1/6', '236 × 45', '3x + 5 = 20', '25% of 80', '2 + 3 × (8 − 2)', '7.5 ÷ 0.25', '503 − 278', '? × 6 = 42'];
+const EXAMPLES = ['3/4 + 1/6', '236 × 45', '3x + 5 = 20', '25% of 80', '2 + 3 × (8 − 2)', '56.35 ÷ 7', '? × 6 = 42', '6 friends share 24 cookies equally. How many cookies does each friend get?'];
 const CHEERS = ['Great job!', 'Nailed it!', 'You got it!', 'Super!', 'Awesome!', 'Correct!', 'Brilliant!'];
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -72,7 +72,7 @@ function insertAtCursor(input, text) {
 }
 
 function renderExamples() {
-  $('#examples').innerHTML = EXAMPLES.map((e) => `<button type="button" class="chip-btn" data-ex="${esc(e)}">${esc(e)}</button>`).join('');
+  $('#examples').innerHTML = EXAMPLES.map((e) => `<button type="button" class="chip-btn" data-ex="${esc(e)}">${esc(e.length > 30 ? `${e.split('.')[0]}…` : e)}</button>`).join('');
 }
 
 function runSolve(text, { remember = true } = {}) {
@@ -164,8 +164,21 @@ function renderResult(res) {
   draw();
 }
 
+// The box grows to fit a long word problem; Enter solves, Shift+Enter makes a new line.
+function fitProblem() {
+  problemInput.style.height = 'auto';
+  problemInput.style.height = `${problemInput.scrollHeight + 4}px`;
+}
+
 function setupSolve() {
   renderExamples();
+  problemInput.addEventListener('input', fitProblem);
+  problemInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      $('#solve-form').requestSubmit();
+    }
+  });
   $('#hint-first').checked = store.setting('hintFirst');
   $('#hint-first').onchange = (e) => {
     store.setting('hintFirst', e.target.checked);
@@ -183,6 +196,7 @@ function setupSolve() {
     const b = e.target.closest('button');
     if (!b) return;
     problemInput.value = b.dataset.ex;
+    fitProblem();
     runSolve(b.dataset.ex);
   };
 
@@ -198,6 +212,7 @@ function setupSolve() {
       const { readPhoto } = await import('./ocr.js');
       const text = await readPhoto(file, (msg) => { status.textContent = msg; });
       problemInput.value = text;
+      fitProblem();
       status.textContent = 'Check the problem looks right (fix it if not), then tap Solve.';
       problemInput.focus();
     } catch (err) {
@@ -437,7 +452,7 @@ function renderProgress() {
     <div class="card">
       <h2>Recent problems</h2>
       <div class="history" style="margin-top:10px">
-        ${s.history.length ? s.history.map((h) => `<button type="button" class="chip-btn" data-h="${esc(h)}">${esc(h)}</button>`).join('') : '<p class="muted">Problems you solve will show up here.</p>'}
+        ${s.history.length ? s.history.map((h) => `<button type="button" class="chip-btn" data-h="${esc(h)}">${esc(h.length > 40 ? `${h.slice(0, 38)}…` : h)}</button>`).join('') : '<p class="muted">Problems you solve will show up here.</p>'}
       </div>
     </div>
     ${others.length ? `<div class="card">
@@ -454,7 +469,7 @@ function renderProgress() {
   body.onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.h) { problemInput.value = b.dataset.h; location.hash = '#solve'; runSolve(b.dataset.h); return; }
+    if (b.dataset.h) { problemInput.value = b.dataset.h; location.hash = '#solve'; fitProblem(); runSolve(b.dataset.h); return; }
     if (b.dataset.kid) { switchKid(b.dataset.kid); return; }
     const m = b.dataset.m;
     if (!m) return;

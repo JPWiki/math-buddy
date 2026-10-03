@@ -33,9 +33,9 @@
   <section id="view-solve" class="view" aria-labelledby="solve-h">
     <h1 id="solve-h" class="sr-only">Solve a problem</h1>
     <form id="solve-form" class="ask" autocomplete="off">
-      <label for="problem" class="ask-label">Type a math problem</label>
+      <label for="problem" class="ask-label">Type a math problem or a word problem</label>
       <div class="ask-row">
-        <input id="problem" name="problem" type="text" inputmode="text" enterkeyhint="go" spellcheck="false" autocapitalize="off" placeholder="like 3/4 + 1/6 or 3x + 5 = 20">
+        <textarea id="problem" name="problem" rows="1" enterkeyhint="go" spellcheck="false" autocapitalize="sentences" placeholder="like 3/4 + 1/6, or a word problem"></textarea>
         <button id="camera-btn" class="icon-btn" type="button" aria-label="Take a photo of a problem" title="Take a photo of a problem">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
         </button>

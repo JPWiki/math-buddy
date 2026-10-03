@@ -196,6 +196,10 @@ main { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 20
 #problem {
   flex: 1;
   min-width: 0;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.35;
+  font-family: inherit;
   font-size: 1.35rem;
   padding: 10px 14px;
   border: 2px solid var(--line);
@@ -204,7 +208,7 @@ main { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 20
   font-variant-numeric: tabular-nums;
 }
 #problem:focus { border-color: var(--accent); outline: none; }
-.icon-btn { width: 52px; flex: none; border: 2px solid var(--line); border-radius: 12px; background: var(--paper); display: grid; place-items: center; }
+.icon-btn { width: 52px; align-self: flex-start; height: 52px; flex: none; border: 2px solid var(--line); border-radius: 12px; background: var(--paper); display: grid; place-items: center; }
 .icon-btn svg { width: 26px; height: 26px; }
 .symbols { display: flex; flex-wrap: wrap; gap: 6px; }
 .symbols button {
@@ -306,6 +310,13 @@ sup { font-size: 0.65em; }
 .verdict { margin: 0; padding: 12px 14px; border-radius: 12px; font-weight: 500; }
 .verdict.good { background: var(--good-soft); color: var(--good); }
 .verdict.bad { background: var(--bad-soft); color: var(--bad); }
+
+/* word problems: the story with numbers highlighted and clue words underlined */
+.word-text { font-size: 1.08rem; font-weight: 400; text-align: left; line-height: 1.7; white-space: normal; }
+.word-text mark { font-weight: 600; }
+u.clue { text-decoration: none; border-bottom: 3px solid var(--accent); padding-bottom: 1px; font-weight: 600; }
+.unit { font-size: 0.6em; font-weight: 500; color: var(--ink-soft); }
+.question .word-text { font-size: 1.15rem; }
 
 /* ---------- practice ---------- */
 .lede { margin: 6px 0 0; color: var(--ink-soft); max-width: 60ch; }

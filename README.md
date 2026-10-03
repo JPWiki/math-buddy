@@ -12,7 +12,7 @@ Android SDK, no account, no server.
   equations by doing the same thing to both sides (plus a check at the end).
 - **Let me try first** (on by default): the kid answers first, then can ask for a hint or
   reveal one step at a time. The full answer only appears at the end.
-- **Practice**: 11 topics × 3 levels, 10 problems a round, an on-screen keypad, a hint after a
+- **Practice**: 12 topics (including word problems) × 3 levels, 10 problems a round, an on-screen keypad, a hint after a
   wrong first try, and "Show me how" after a second miss. Stars and streaks.
 - **Profiles**: one per kid, each with their own stars, streaks, stats, recent problems and
   settings. Tap the name in the header to switch kids or add one. Rename, reset or delete a
@@ -34,12 +34,26 @@ Android SDK, no account, no server.
 | Percents | `25% of 80`, `35% of 60` |
 | Equations / missing numbers | `3x + 5 = 20`, `2(x + 3) = 4x - 2`, `? × 6 = 42` |
 | Checking a statement | `5 + 2 = 8` (says whether it's true) |
+| Word problems | `6 friends share 24 cookies equally. How many cookies does each friend get?` |
+
+### Word problems
+
+Word problems are read offline, the way kids are taught: find the question, find the
+numbers, spot the clue words ("shared equally" → ÷, "each" → ×, "left" → −, "in all" → +,
+"how many more" → compare), then write the math sentence and solve it step by step. The
+numbers and clue words are highlighted in the story, and the answer comes with its unit
+("4 cookies", "$14").
+
+It handles one- and two-step problems: adding, taking away, comparing, equal groups,
+sharing, money, "25% off", "2/3 of the students", "what fraction is left". If it can't tell
+what a problem is asking, it says so and asks the kid to write the math sentence instead of
+guessing.
 
 Typing tips: `x` means times unless there's an `=` sign (then it's the unknown). `3/4` with no
 spaces is a fraction; `3 / 4` is division. Words like *plus*, *minus*, *times*, *divided by*
 and *of* work too.
 
-Not supported yet: word problems, squared equations, geometry.
+Not supported yet: squared equations, geometry, and word problems that need more than a couple of steps.
 
 ## Run it
 
@@ -77,6 +91,8 @@ js/rational.js        exact fractions (so 1/3 + 1/3 + 1/3 is exactly 1)
 js/parser.js          turns typed text into an expression tree
 js/explain.js         explains each single operation (carrying, long division, fractions…)
 js/solver.js          walks the tree in order of operations; solves linear equations
+js/written.js         long multiplication and long division laid out like on paper
+js/words.js           reads word problems (question, numbers, clue words)
 js/practice.js        practice problem generators
 js/store.js           kid profiles and progress, saved in localStorage
 js/ocr.js             optional photo reading (loads Tesseract.js on first use)

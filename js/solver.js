@@ -4,6 +4,7 @@ import { Q, MathError } from './rational.js';
 import { parseProblem } from './parser.js';
 import { exprHTML, exprText, numHTML, numText, numNodeHTML, fracHTML, group, answerForms, MINUS } from './format.js';
 import * as X from './explain.js';
+import { readWordProblem, looksLikeWords } from './words.js';
 
 const OP_TITLES = { '+': 'Add', '-': 'Subtract', '*': 'Multiply', '/': 'Divide', '^': 'Work out the power' };
 const T = '×';
@@ -368,8 +369,63 @@ function solveEquation(left, right, v) {
 
 // ---------- public ----------
 
+const WORD_HELP = "I couldn't work out this word problem. Find the question and the numbers, then decide: put together (+), take away (\u2212), equal groups (\u00d7) or share equally (\u00f7)? Type it as a number problem, like 24 \u00f7 6.";
+
 export function solve(input) {
-  const parsed = parseProblem(input);
+  let parsed;
+  try {
+    parsed = parseProblem(input);
+  } catch (e) {
+    if (!(e instanceof MathError) || !looksLikeWords(input)) throw e;
+    const w = readWordProblem(input);
+    if (!w) throw new MathError(WORD_HELP);
+    return solveWords(w);
+  }
+  return solveParsed(parsed);
+}
+
+function moneyText(q) {
+  const neg = q.sign() < 0;
+  const v = Math.abs(q.valueOf());
+  return `${neg ? MINUS : ''}$${Number.isInteger(v) ? v : v.toFixed(2)}`;
+}
+
+function solveWords(w) {
+  const res = solveParsed(parseProblem(w.expr));
+  const mathHTML = res.problemHTML;
+  const lines = [
+    `<b>The question:</b> ${w.question.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}`,
+    `<b>The numbers:</b> ${w.numbers.map((x) => `<mark>${x.replace(/[&<>]/g, '')}</mark>`).join(', ')}`,
+    ...w.clues.map((c) => `<b>Clue:</b> <u class="clue">${c.text}</u> ${c.meaning}.`),
+    `So the math sentence is <span class="m">${mathHTML}</span>.`,
+  ];
+  res.steps.unshift({
+    title: 'Turn the words into math',
+    reason: '',
+    beforeHTML: `<div class="word-text">${w.html}</div>`,
+    lines,
+    afterHTML: `<mark>${mathHTML}</mark>`,
+    hint: '',
+  });
+  // The problem itself is shown plain: spotting the numbers and clue words is the skill.
+  // The highlighted version is in the first step.
+  res.problemHTML = `<div class="word-text">${w.plainHTML}</div>`;
+  res.problemText = w.question;
+  res.word = w;
+  res.hint = `Find the question first. Then find the numbers and the clue words. Do you need to put together (+), take away (\u2212), make equal groups (\u00d7) or share equally (\u00f7)?${w.clues[0] ? ` Look at the words "${w.clues[0].text}".` : ''}`;
+  const q = res.answer.q;
+  if (q && w.asFraction) {
+    res.answer.html = numHTML(q, 'frac');
+  } else if (q && w.money) {
+    res.answer.html = moneyText(q);
+    res.answer.forms = [];
+  } else if (q && w.unit) {
+    res.answer.html += ` <span class="unit">${w.unit}</span>`;
+  }
+  return res;
+}
+
+function solveParsed(parsed) {
   if (parsed.kind === 'expr') {
     const tree = parsed.tree;
     let { steps, result } = evaluateSteps(tree);
@@ -431,7 +487,7 @@ export function solve(input) {
 
 // Reads a kid's typed answer: "3/4", "0.75", "2 1/2", "x = 5", "7 R 3".
 export function readAnswer(text) {
-  let s = String(text).trim().replace(/^[a-z?]\s*=\s*/i, '');
+  let s = String(text).trim().replace(/^[a-z?]\s*=\s*/i, '').replace(/^\$\s*/, '').replace(/^(-?[\d.,/ ]*\d)\s+[a-z][a-z ]*$/i, '$1');
   const rem = s.match(/^(-?\d+)\s*(?:r|rem|remainder)\s*(\d+)$/i);
   if (rem) return { remainder: { whole: Number(rem[1]), rem: Number(rem[2]) } };
   const parsed = parseProblem(s);
