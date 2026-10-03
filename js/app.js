@@ -1,6 +1,6 @@
 import { solve, checkAnswer } from './solver.js';
 import { MathError } from './rational.js';
-import { TOPICS, LEVELS, LEVEL_STARS, GRADES, gradeLabel, gradeAges, makeRound, inGrade, allowsNegatives } from './practice.js';
+import { TOPICS, LEVELS, LEVEL_STARS, GRADES, gradeLabel, gradeAges, makeRound, inGrade, allowsNegatives, tierFor, gen } from './practice.js';
 import { store, readBackup, dayKey } from './store.js';
 import { APP_VERSION } from './version.js';
 import { FIREBASE_CONFIG } from './config.js';
@@ -8,7 +8,26 @@ import { esc } from './format.js';
 
 const $ = (sel) => document.querySelector(sel);
 
-const EXAMPLES = ['3/4 + 1/6', '236 × 45', '3x + 5 = 20', '25% of 80', '2 + 3 × (8 − 2)', '56.35 ÷ 7', '? × 6 = 42', '6 friends share 24 cookies equally. How many cookies does each friend get?'];
+// The Solve examples: one fresh problem per topic the current kid's class studies, at
+// Medium (the CBSE level for that class). New ones every time the app opens or the kid changes.
+let examples = [];
+
+function makeExamples() {
+  const grade = (store.current() || {}).grade || null;
+  const topics = TOPICS.filter((t) => inGrade(t, grade)).sort(() => Math.random() - 0.5).slice(0, 7);
+  const out = [];
+  for (const t of topics) {
+    const tier = tierFor(t, grade, 1);
+    for (let i = 0; i < 20; i++) {
+      const p = gen(t, tier);
+      if (out.includes(p) || (!allowsNegatives(t, grade) && !noNegatives(p))) continue;
+      out.push(p);
+      break;
+    }
+  }
+  // Word problems last, so the short ones sit together.
+  return out.sort((a, b) => a.length - b.length);
+}
 const CHEERS = ['Great job!', 'Nailed it!', 'You got it!', 'Super!', 'Awesome!', 'Correct!', 'Brilliant!'];
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -73,8 +92,12 @@ function insertAtCursor(input, text) {
   input.setSelectionRange(pos, pos);
 }
 
-function renderExamples() {
-  $('#examples').innerHTML = EXAMPLES.map((e) => `<button type="button" class="chip-btn" data-ex="${esc(e)}">${esc(e.length > 30 ? `${e.split('.')[0]}…` : e)}</button>`).join('');
+function renderExamples(fresh = true) {
+  if (fresh || !examples.length) examples = makeExamples();
+  const grade = (store.current() || {}).grade;
+  $('#examples-label').textContent = grade ? `Try one (${gradeLabel(grade)}):` : 'Try one:';
+  $('#examples').innerHTML = examples.map((e) => `<button type="button" class="chip-btn" data-ex="${esc(e)}">${esc(e.length > 32 ? `${e.slice(0, 30).replace(/\s+\S*$/, '')}\u2026` : e)}</button>`).join('')
+    + '<button type="button" class="chip-btn more" data-new="1">\u21bb New examples</button>';
 }
 
 function runSolve(text, { remember = true } = {}) {
@@ -197,6 +220,7 @@ function setupSolve() {
   $('#examples').onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.dataset.new) { renderExamples(); return; }
     problemInput.value = b.dataset.ex;
     fitProblem();
     runSolve(b.dataset.ex);
@@ -651,6 +675,7 @@ function renderProgress() {
       store.setGrade(kid.id, gs.value || null);
       const g = store.current().grade;
       toast(g ? `${kid.name}: ${gradeLabel(g)}` : `${kid.name}: class not set`);
+      renderExamples();
     };
   }
   const rename = $('#rename-form');
@@ -1000,6 +1025,7 @@ function onKidChanged() {
   updateStars();
   $('#hint-first').checked = store.setting('hintFirst');
   if (round) backToTopics();
+  renderExamples();
   if (problemInput.value.trim() && !$('#result').hidden) runSolve(problemInput.value, { remember: false });
   route({ keepScroll: true });
 }
@@ -1129,5 +1155,10 @@ setupWho();
 if (FIREBASE_CONFIG && store.syncInfo()) startSync();
 
 // Open with a worked example so the first screen shows what the app does.
-problemInput.value = EXAMPLES[0];
-runSolve(EXAMPLES[0], { remember: false });
+// Open with one of the examples worked out, so the first screen shows what the app does.
+const firstExample = examples.find((e) => e.length < 32) || examples[0];
+if (firstExample) {
+  problemInput.value = firstExample;
+  fitProblem();
+  runSolve(firstExample, { remember: false });
+}

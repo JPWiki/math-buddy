@@ -505,3 +505,4 @@ u.clue { text-decoration: none; border-bottom: 3px solid var(--accent); padding-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.chip-btn.more { color: var(--accent); border-style: dashed; }
