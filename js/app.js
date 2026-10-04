@@ -41,9 +41,41 @@ function toast(msg) {
   toast.timer = setTimeout(() => { t.hidden = true; }, 2200);
 }
 
+// ---------- the crown: worn by the kid (or kids, if tied) with the most stars ----------
+
+const CROWN_SVG = '<svg viewBox="0 0 24 18" aria-hidden="true"><path d="M2 15 1 4l6 5 5-8 5 8 6-5-1 11z" fill="var(--star)" stroke="var(--crown-edge)" stroke-width="1.4" stroke-linejoin="round"/><circle cx="1" cy="4" r="1.6" fill="var(--star)"/><circle cx="12" cy="1.6" r="1.6" fill="var(--star)"/><circle cx="23" cy="4" r="1.6" fill="var(--star)"/></svg>';
+
+function crownHolders() {
+  const kids = store.profiles();
+  if (kids.length < 2) return new Set();
+  const top = Math.max(...kids.map((k) => k.stars || 0));
+  if (top <= 0) return new Set();
+  return new Set(kids.filter((k) => (k.stars || 0) === top).map((k) => k.id));
+}
+
+const hasCrown = (id) => crownHolders().has(id);
+// A crown sitting on top of an avatar circle.
+const avatarCrown = (id) => (hasCrown(id) ? `<span class="crown" title="Most stars">${CROWN_SVG}</span>` : '');
+// A small crown next to a name in text.
+const nameCrown = (id) => (hasCrown(id) ? `<span class="crown-inline" title="Most stars">${CROWN_SVG}</span>` : '');
+const initialOf = (name) => esc((name.match(/\p{L}|\p{N}/u) || [name[0] || '?'])[0].toUpperCase());
+
+let lastCrowned = null;
+// Announce when the kid on this device takes (or shares) the crown.
+function checkCrown() {
+  const now = crownHolders();
+  const kid = store.current();
+  if (lastCrowned && kid && now.has(kid.id) && !lastCrowned.has(kid.id)) {
+    toast(now.size > 1 ? `${kid.name} is sharing the crown!` : `${kid.name} takes the crown!`);
+  }
+  lastCrowned = now;
+}
+
 function updateStars(gained = 0) {
   if (gained) store.addStars(gained);
   $('#star-count').textContent = store.get().stars;
+  updateWho();
+  if (gained) checkCrown();
   if (gained) {
     const s = $('.stars');
     s.classList.remove('pop');
@@ -512,7 +544,7 @@ function weakestTopic(topics) {
 function familyHTML() {
   const kids = store.family();
   const week = lastDays(7);
-  const avatar = (k) => `<span class="avatar c${k.color}" aria-hidden="true">${esc((k.name.match(/\p{L}|\p{N}/u) || ['?'])[0].toUpperCase())}</span>`;
+  const avatar = (k) => `<span class="avatar c${k.color}" aria-hidden="true">${initialOf(k.name)}${avatarCrown(k.id)}</span>`;
   const cards = kids.map((k) => {
     const d = k.data;
     const rate = firstTryRate(d.topics);
@@ -535,7 +567,7 @@ function familyHTML() {
 
   const tried = TOPICS.filter((t) => kids.some((k) => ((k.data.topics || {})[t.id] || {}).tries));
   const topicTable = tried.length ? `<div class="table-scroll"><table class="fam-table">
-      <thead><tr><th scope="col">Topic</th>${kids.map((k) => `<th scope="col">${esc(k.name)}</th>`).join('')}</tr></thead>
+      <thead><tr><th scope="col">Topic</th>${kids.map((k) => `<th scope="col">${nameCrown(k.id)}${esc(k.name)}</th>`).join('')}</tr></thead>
       <tbody>${tried.map((t) => `<tr><th scope="row">${esc(t.name)}</th>${kids.map((k) => {
         const st = (k.data.topics || {})[t.id];
         if (!st || !st.tries) return '<td class="none">–</td>';
@@ -547,7 +579,7 @@ function familyHTML() {
   const max = Math.max(1, ...kids.flatMap((k) => week.map((w) => (k.data.days || {})[w.key] || 0)));
   const weekTable = `<div class="table-scroll"><table class="fam-table week">
       <thead><tr><th scope="col">Kid</th>${week.map((w, i) => `<th scope="col" title="${esc(w.full)}"${i === week.length - 1 ? ' class="today"' : ''}>${esc(w.label)}</th>`).join('')}</tr></thead>
-      <tbody>${kids.map((k) => `<tr><th scope="row">${esc(k.name)}</th>${week.map((w) => {
+      <tbody>${kids.map((k) => `<tr><th scope="row">${nameCrown(k.id)}${esc(k.name)}</th>${week.map((w) => {
         const n = (k.data.days || {})[w.key] || 0;
         return `<td><span class="heat" style="--h:${n ? 0.15 + 0.85 * (n / max) : 0}">${n || ''}</span></td>`;
       }).join('')}</tr>`).join('')}</tbody>
@@ -578,7 +610,7 @@ function renderProgress() {
   if (!hasKids) progressView = 'kid';
   $('#progress-switch').hidden = !hasKids;
   $('#progress-switch').innerHTML = hasKids ? `
-    <button type="button" role="tab" aria-selected="${progressView === 'kid'}" data-pv="kid">${esc(kid ? kid.name : 'Kid')}</button>
+    <button type="button" role="tab" aria-selected="${progressView === 'kid'}" data-pv="kid">${kid ? nameCrown(kid.id) + esc(kid.name) : 'Kid'}</button>
     <button type="button" role="tab" aria-selected="${progressView === 'family'}" data-pv="family">Family</button>` : '';
   $('#progress-switch').onclick = (e) => {
     const b = e.target.closest('[data-pv]');
@@ -598,7 +630,7 @@ function renderProgress() {
     };
     return;
   }
-  $('#progress-h').textContent = kid ? `${kid.name}'s progress` : 'Progress';
+  $('#progress-h').innerHTML = kid ? `${nameCrown(kid.id)}${esc(kid.name)}'s progress` : 'Progress';
   const rows = TOPICS.map((t) => ({ t, st: s.topics[t.id] })).filter((r) => r.st && r.st.tries);
   const weak = rows.filter((r) => r.st.tries >= 5).sort((a, b) => a.st.firstTry / a.st.tries - b.st.firstTry / b.st.tries)[0];
   const others = store.profiles().filter((p) => !kid || p.id !== kid.id);
@@ -973,10 +1005,9 @@ async function syncAction(action) {
 // ---------- profiles ----------
 
 function kidButton(p, isCurrent) {
-  const initial = esc((p.name.match(/\p{L}|\p{N}/u) || [p.name[0] || '?'])[0].toUpperCase());
   return `<button type="button" class="kid" data-kid="${p.id}" aria-current="${isCurrent}">
-    <span class="avatar big c${p.color}" aria-hidden="true">${initial}</span>
-    <b>${esc(p.name)}</b>
+    <span class="avatar big c${p.color}" aria-hidden="true">${initialOf(p.name)}${avatarCrown(p.id)}</span>
+    <b>${esc(p.name)}${hasCrown(p.id) ? '<span class="sr-only"> (most stars)</span>' : ''}</b>
     <small>\u2605 ${p.stars}</small>
   </button>`;
 }
@@ -987,9 +1018,9 @@ function updateWho() {
   if (!kid) return;
   const av = $('#who-avatar');
   av.className = `avatar c${kid.color}`;
-  av.textContent = (kid.name.match(/\p{L}|\p{N}/u) || [kid.name[0] || '?'])[0].toUpperCase();
+  av.innerHTML = initialOf(kid.name) + avatarCrown(kid.id);
   $('#who-name').textContent = kid.name;
-  $('#who').setAttribute('aria-label', `${kid.name}. Switch kid`);
+  $('#who').setAttribute('aria-label', `${kid.name}${hasCrown(kid.id) ? ', wearing the crown' : ''}. Switch kid`);
 }
 
 function openWho() {
@@ -1151,6 +1182,7 @@ window.addEventListener('hashchange', () => route());
 route();
 setupBackup();
 setupWho();
+checkCrown(); // remember who wears the crown now, so a change can be announced
 // A device that already uses family sync reconnects by itself.
 if (FIREBASE_CONFIG && store.syncInfo()) startSync();
 
