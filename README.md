@@ -128,6 +128,10 @@ Then open http://localhost:8080. Service workers (offline mode and install) need
 To ship it on the Play Store later, wrap the hosted PWA as a Trusted Web Activity with
 [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap). No app code changes needed.
 
+## Plans
+
+Ideas agreed but not built yet are in [ROADMAP.md](ROADMAP.md).
+
 ## Tests
 
 ```sh
