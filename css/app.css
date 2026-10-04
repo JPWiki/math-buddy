@@ -209,15 +209,17 @@ main { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 20
 .add-row .grade-select { flex: 1 1 100%; order: 3; }
 .level button small { font-weight: 600; opacity: 0.8; }
 
-/* the crown */
-.avatar .crown { position: absolute; left: 50%; top: -0.78em; width: 1.3em; transform: translateX(-50%) rotate(-8deg); line-height: 0; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); pointer-events: none; }
-.avatar.big .crown { top: -0.66em; width: 1.1em; }
-.avatar .crown svg, .crown-inline svg { width: 100%; height: auto; display: block; }
-.crown-inline { display: inline-block; width: 1.1em; margin-right: 0.25em; vertical-align: -0.05em; line-height: 0; }
-.who { overflow: visible; }
-.top { overflow: visible; }
+/* the crown: sits on top of the leader's name */
+.crowned { position: relative; display: inline-block; }
+.crowned .crown { position: absolute; left: 50%; bottom: 78%; width: 1.15em; max-width: 26px; min-width: 16px; transform: translateX(-50%) rotate(-6deg); line-height: 0; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); pointer-events: none; }
+.crowned .crown svg { width: 100%; height: auto; display: block; }
+.who, .top { overflow: visible; }
+.who { padding-top: 6px; }
+.kid { padding-top: 16px; }
+.fam-table thead th, .fam-table th[scope="row"] { padding-top: 16px; }
+h1 .crowned .crown { width: 0.8em; bottom: 82%; }
 @media (prefers-reduced-motion: no-preference) {
-  .avatar .crown { animation: crown-in 0.5s ease; }
+  .crowned .crown { animation: crown-in 0.5s ease; }
 }
 @keyframes crown-in { from { transform: translate(-50%, -40%) rotate(-30deg) scale(0.4); opacity: 0; } }
 
@@ -521,3 +523,6 @@ u.clue { text-decoration: none; border-bottom: 3px solid var(--accent); padding-
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .chip-btn.more { color: var(--accent); border-style: dashed; }
+
+/* Long names are still cut off with "…" sideways, but the crown can stick out above. */
+.who-name, .kid b, .seg button, .fam-kid header b { overflow-x: clip; overflow-y: visible; }
