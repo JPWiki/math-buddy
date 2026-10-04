@@ -156,6 +156,11 @@ main { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 20
 }
 .tabs svg { width: 24px; height: 24px; }
 .tabs a[aria-current="page"] { color: var(--accent); }
+.tab-icon { position: relative; display: inline-flex; }
+.tabs .lock-badge { display: none; position: absolute; right: -9px; bottom: -3px; width: 13px; height: 13px; color: var(--ink-soft); background: var(--card); border-radius: 4px; padding: 1px; }
+.tabs a.locked { opacity: 0.45; cursor: not-allowed; }
+.tabs a.locked .lock-badge { display: block; }
+.tabs a:not(.locked) .lock-text { display: none; }
 
 /* ---------- profiles ---------- */
 .who { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 12px 3px 3px; min-height: 38px; max-width: 150px; }

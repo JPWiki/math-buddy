@@ -315,12 +315,32 @@ function noNegatives(text) {
   }
 }
 
+// ---------- Solve is locked during a practice round ----------
+// So a practice question can't be typed into Solve to get the answer. Finishing or
+// stopping the round unlocks it.
+const LOCK_MESSAGE = 'Finish your round first, or tap Stop to leave it.';
+const roundActive = () => !!round && !round.done;
+
+function updateSolveLock() {
+  const tab = document.querySelector('.tabs a[data-tab="solve"]');
+  const locked = roundActive();
+  tab.classList.toggle('locked', locked);
+  if (locked) {
+    tab.setAttribute('aria-disabled', 'true');
+    tab.title = LOCK_MESSAGE;
+  } else {
+    tab.removeAttribute('aria-disabled');
+    tab.removeAttribute('title');
+  }
+}
+
 function startRound(topicId) {
   if (updateWaiting) { applyUpdateIfSafe(); return; }
   const topic = TOPICS.find((t) => t.id === topicId);
   const grade = (store.current() || {}).grade || null;
   const accept = allowsNegatives(topic, grade) ? () => true : noNegatives;
   round = { topic, grade, problems: makeRound(topicId, level, 10, accept, grade), i: 0, results: [], tries: 0, stars: 0, firstTry: 0 };
+  updateSolveLock();
   $('#practice-setup').hidden = true;
   $('#practice-done').hidden = true;
   $('#practice-play').hidden = false;
@@ -407,6 +427,7 @@ function checkPractice() {
 
 function endRound() {
   round.done = true; // the score screen is showing; safe to update after this
+  updateSolveLock();
   const right = round.results.filter(Boolean).length;
   const total = round.problems.length;
   const msg = right === total ? 'Perfect round!' : right >= total * 0.8 ? 'Excellent work!' : right >= total * 0.5 ? 'Good effort! Practice makes progress.' : 'That was a tough one. Try Easy level, then work back up.';
@@ -432,6 +453,7 @@ function endRound() {
 
 function backToTopics() {
   round = null;
+  updateSolveLock();
   applyUpdateIfSafe();
   $('#practice-play').hidden = true;
   $('#practice-done').hidden = true;
@@ -682,7 +704,10 @@ function renderProgress() {
   body.onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.h) { problemInput.value = b.dataset.h; location.hash = '#solve'; fitProblem(); runSolve(b.dataset.h); return; }
+    if (b.dataset.h) {
+      if (roundActive()) { toast(LOCK_MESSAGE); return; }
+      problemInput.value = b.dataset.h; location.hash = '#solve'; fitProblem(); runSolve(b.dataset.h); return;
+    }
     if (b.dataset.kid) { switchKid(b.dataset.kid); return; }
     if (b.dataset.b) { handleBackup(b.dataset.b, 'progress'); return; }
     const m = b.dataset.m;
@@ -1112,7 +1137,13 @@ function setupWho() {
 
 function route({ keepScroll = false } = {}) {
   applyUpdateIfSafe();
-  const tab = (location.hash || '#solve').slice(1);
+  let tab = (location.hash || '#solve').slice(1);
+  // The back button (or a typed address) can't reach Solve during a round either.
+  if ((tab === 'solve' || !['practice', 'progress'].includes(tab)) && roundActive()) {
+    history.replaceState(null, '', '#practice');
+    tab = 'practice';
+    toast(LOCK_MESSAGE);
+  }
   const valid = ['solve', 'practice', 'progress'].includes(tab) ? tab : 'solve';
   for (const v of ['solve', 'practice', 'progress']) $(`#view-${v}`).hidden = v !== valid;
   document.querySelectorAll('.tabs a').forEach((a) => {
@@ -1179,6 +1210,12 @@ setupSolve();
 setupPractice();
 updateStars();
 window.addEventListener('hashchange', () => route());
+document.querySelector('.tabs').addEventListener('click', (e) => {
+  if (e.target.closest('a[data-tab="solve"]') && roundActive()) {
+    e.preventDefault();
+    toast(LOCK_MESSAGE);
+  }
+});
 route();
 setupBackup();
 setupWho();
